@@ -19,6 +19,7 @@ Deprecated
 Changed
 -------
 - For property creators :code:`Instrument.control`... the conversion parameters (:code:`cast` etc.) are keyword only, now.
+- Rewrite the Thorlabs PRO8000/PRO800 driver to use channels: one channel per populated slot is auto-detected (:code:`:CONFIG:PLUG?`) with LDC, TED and ITC module support, added measured read-backs (actual current, temperature, voltage, ...) and fixed the laser diode polarity command (now :code:`:LDPOL`). The former flat, slot-selecting properties (:code:`LDCCurrent`, :code:`LDCStatus`, ...) are replaced by the channel interfaces.
 
 Version 0.16.0 (2026-05-20)
 ===========================
