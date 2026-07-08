@@ -62,6 +62,7 @@ Instruments by manufacturer:
    parker/index
    philips/index
    pendulum/index
+   physikinstrumente/index
    proterial/index
    ptw/index
    racal/index
