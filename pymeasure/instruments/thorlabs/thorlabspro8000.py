@@ -230,10 +230,19 @@ class PDAPortChannel(Channel):
 
     measurement_range = Channel.control(
         ":RANGE?", ":RANGE %d",
-        """Control the measurement range as an index from 1 to 7, corresponding to
-        10 nA, 100 nA, 1 µA, 10 µA, 100 µA, 1 mA and 10 mA full scale (int).""",
+        """Control the measurement range as the full-scale photodiode current, in A.
+        One of 10e-9, 100e-9, 1e-6, 10e-6, 100e-6, 1e-3 or 10e-3 (float).""",
         validator=strict_discrete_set,
-        values=list(range(1, 8)),
+        values={
+            10e-9: 1,
+            100e-9: 2,
+            1e-6: 3,
+            10e-6: 4,
+            100e-6: 5,
+            1e-3: 6,
+            10e-3: 7,
+        },
+        map_values=True,
         cast=int,
     )
 

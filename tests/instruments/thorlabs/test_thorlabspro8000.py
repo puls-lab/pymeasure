@@ -81,19 +81,21 @@ def test_pda_optical_power():
 
 
 def test_pda_range_setter():
+    # 100e-6 A full scale maps to range index 5.
     with expected_protocol(
         ThorlabsPro8000,
         INIT + [(":SLOT 4", None), (":PORT 1", None), (":RANGE 5", None)],
     ) as inst:
-        inst.channels[4].port_1.measurement_range = 5
+        inst.channels[4].port_1.measurement_range = 100e-6
 
 
 def test_pda_range_getter():
+    # Range index 3 maps to 1e-6 A full scale.
     with expected_protocol(
         ThorlabsPro8000,
         INIT + [(":SLOT 4", None), (":PORT 1", None), (":RANGE?", "3")],
     ) as inst:
-        assert inst.channels[4].port_1.measurement_range == 3
+        assert inst.channels[4].port_1.measurement_range == 1e-6
 
 
 def test_pda_bias_enabled_setter():
