@@ -24,6 +24,8 @@
 
 import logging
 
+from pyvisa.constants import ControlFlow
+
 from pymeasure.instruments import Channel, Instrument, SCPIMixin
 from pymeasure.instruments.validators import strict_discrete_set, strict_range
 
@@ -312,10 +314,29 @@ class ThorlabsPro8000(SCPIMixin, Instrument):
     Supported modules are LDC8xxx (:class:`LDCChannel`), TED8xxx
     (:class:`TEDChannel`), ITC8xxx (:class:`ITCChannel`) and PDA8xxx
     (:class:`PDAChannel`, whose two ports are :class:`PDAPortChannel`).
+
+    Over the serial port the mainframe requires RTS/CTS hardware handshaking and
+    needs a short pause between a command and its response; both are configured by
+    default. The baud rate must match the setting of the mainframe's rear DIP
+    switches (factory default 19200).
     """
 
-    def __init__(self, adapter, name="Thorlabs Pro 8000", **kwargs):
-        super().__init__(adapter, name, **kwargs)
+    def __init__(self, adapter, name="Thorlabs Pro 8000", baud_rate=19200, **kwargs):
+        kwargs.setdefault("timeout", 5000)
+        super().__init__(
+            adapter,
+            name,
+            asrl={
+                "baud_rate": baud_rate,
+                # The mainframe only sends once the host asserts RTS, and it needs
+                # time to assemble the answer before it can be read back.
+                "flow_control": ControlFlow.rts_cts,
+                "query_delay": 0.05,
+                "read_termination": "\n",
+                "write_termination": "\n",
+            },
+            **kwargs,
+        )
         # Respond with bare values (without the command mnemonic) to simplify parsing.
         self.write(":SYST:ANSW VALUE")
         self._create_module_channels()
