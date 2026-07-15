@@ -3022,28 +3022,19 @@ class HP8560A(HP856Xx):
         self.write("SRCTKPK")
 
 
-class HP8561B(HP856Xx):
-    """Represents the HP 8561B Spectrum Analyzer and provides a high-level
-    interface for interacting with the instrument.
+class HP856XxWithHighBand(HP856Xx):
+    """Common base class for HP 856x spectrum analyzers with high-band operation.
 
-    .. code-block:: python
+    It bundles the external-mixer, harmonic-mixing and preselector functions that are
+    shared by the microwave models of the family (e.g. the HP 8561B and HP 8565E). These
+    instruments reach frequencies above the fundamental-mixing range by using harmonic
+    mixing, either with the internal preselected mixer or with an external mixer.
 
-        from pymeasure.instruments.hp import 8561B
-        from pymeasure.instruments.hp.hp856Xx import AmplitudeUnits
-
-        sa = HP8560A("GPIB::1")
-
-        sa.amplitude_unit = AmplitudeUnits.DBUV
-        sa.start_frequency = 6.4e9
-        sa.stop_frequency = 6.5e9
-
-        print(sa.marker_amplitude)
+    Don't use this class directly - use one of its derivative classes such as
+    :class:`HP8561B` or :class:`HP8565E`.
     """
 
-    # HP8561B is able to go up to 6.5 GHz
-    MAX_FREQUENCY = 6.5e9
-
-    def __init__(self, adapter, name="Hewlett-Packard HP8561B", **kwargs):
+    def __init__(self, adapter, name, **kwargs):
         super().__init__(
             adapter,
             name,
@@ -3260,7 +3251,7 @@ class HP8561B(HP856Xx):
     )
 
     def peak_preselector(self):
-        """Peaks the preselector in the HP 8561B Spectrum Analyzer.
+        """Peak the preselector of the spectrum analyzer.
 
         Make sure the entire frequency span is in high band, set the
         desired trace to clear-write mode, place a marker on a desired
@@ -3275,8 +3266,8 @@ class HP8561B(HP856Xx):
     preselector_dac_number = Instrument.control(
         "PSDAC?", "PSDAC %d",
         """
-        Control the preselector peak DAC number. For use with an
-        HP 8561B Spectrum Analyzer.
+        Control the preselector peak DAC number. For use with a spectrum
+        analyzer that has a built-in preselector.
 
         Type: :code:`int`
         """,
@@ -3306,3 +3297,61 @@ class HP8561B(HP856Xx):
         values={True: "1", False: "0", "AUTO": "AUTO", "MAN": "MAN"},
         cast=str,
     )
+
+
+class HP8561B(HP856XxWithHighBand):
+    """Represents the HP 8561B Spectrum Analyzer and provides a high-level
+    interface for interacting with the instrument.
+
+    .. code-block:: python
+
+        from pymeasure.instruments.hp import HP8561B
+        from pymeasure.instruments.hp.hp856Xx import AmplitudeUnits
+
+        sa = HP8561B("GPIB::1")
+
+        sa.amplitude_unit = AmplitudeUnits.DBUV
+        sa.start_frequency = 6.4e9
+        sa.stop_frequency = 6.5e9
+
+        print(sa.marker_amplitude)
+    """
+
+    # HP8561B is able to go up to 6.5 GHz
+    MAX_FREQUENCY = 6.5e9
+
+    def __init__(self, adapter, name="Hewlett-Packard HP8561B", **kwargs):
+        super().__init__(
+            adapter,
+            name,
+            **kwargs,
+        )
+
+
+class HP8565E(HP856XxWithHighBand):
+    """Represents the HP 8565E Spectrum Analyzer and provides a high-level
+    interface for interacting with the instrument.
+
+    .. code-block:: python
+
+        from pymeasure.instruments.hp import HP8565E
+        from pymeasure.instruments.hp.hp856Xx import AmplitudeUnits
+
+        sa = HP8565E("GPIB::1")
+
+        sa.amplitude_unit = AmplitudeUnits.DBUV
+        sa.start_frequency = 29.5e9
+        sa.stop_frequency = 30.5e9
+
+        print(sa.marker_amplitude)
+    """
+
+    # HP8565E is able to go up to 50 GHz
+    MAX_FREQUENCY = 50e9
+
+    def __init__(self, adapter, name="Hewlett-Packard HP8565E", **kwargs):
+        super().__init__(
+            adapter,
+            name,
+            **kwargs,
+        )
