@@ -51,6 +51,7 @@ class Pro8Channel(Channel):
         ":TYPE:TXT?",
         """Get the module type of this slot as text, e.g. ``LDC8xxx`` (str).""",
         cast=str,
+        maxsplit=0,
     )
 
 
@@ -89,7 +90,7 @@ class LDCChannel(Pro8Channel):
     current_limit = Channel.control(
         ":LIMC:SET?", ":LIMC:SET %g",
         """Control the software laser diode current limit, in A
-        (float, must be below the hardware limit).""",
+        (float, must be below the hardware limit, see :attr:`current_hardware_limit`).""",
     )
 
     current_hardware_limit = Channel.measurement(
@@ -344,10 +345,11 @@ class ThorlabsPro8000(SCPIMixin, Instrument):
     def get_module_ids(self):
         """Get the list of module type ids for all slots (``:CONFIG:PLUG?``).
 
-        :return: List of 8 integer module ids, one per slot (see :data:`MODULE_NAMES`).
+        :return: List of integer module ids, one per slot (see
+            :data:`~pymeasure.instruments.thorlabs.thorlabspro8000.MODULE_NAMES`).
         """
         values = self.values(":CONFIG:PLUG?")
-        # 16 numbers are returned: (type, subtype) for each of the 8 slots.
+        # (type, subtype) pairs are returned, one pair per slot.
         return [int(v) for v in values[0::2]]
 
     def _create_module_channels(self):
