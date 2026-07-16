@@ -246,6 +246,20 @@ class TestHP856Xx:
         ) as instr:
             assert instr.errors == [ErrorCode(112), ErrorCode(101), ErrorCode(111)]
 
+    def test_single_error(self):
+        with expected_protocol(
+                HP856Xx,
+                [("ERR?", "112")],
+        ) as instr:
+            assert instr.errors == [ErrorCode(112)]
+
+    def test_no_error(self):
+        with expected_protocol(
+                HP856Xx,
+                [("ERR?", "0")],
+        ) as instr:
+            assert instr.errors == []
+
     def test_empty_errors(self):
         with expected_protocol(
                 HP856Xx,
@@ -695,11 +709,13 @@ class TestHP856Xx:
     def test_sweep_time(self):
         with expected_protocol(
                 HP856Xx,
-                [("ST 10.000 S", None),
+                [("ST 1.000000E+01 S", None),
+                 ("ST 5.000000E-05 S", None),
                  ("ST AUTO", None),
                  ("ST?", "10.00")]
         ) as instr:
             instr.sweep_time = 10
+            instr.sweep_time = 50e-6
             instr.sweep_time = "AUTO"
             assert instr.sweep_time == 10
 
@@ -880,6 +896,26 @@ class TestHP856Xx:
         ) as instr:
             assert getattr(instr, function)() == expected_data
 
+    @pytest.mark.parametrize("unit, ref_lvl, expected_ref", [
+        ("DBUV", "107.0", 0.0),
+        ("DBMV", "46.9897", 0.0),
+        ("V", "1.0", 13.01),
+        ("W", "0.001", 0.0),
+    ])
+    def test_trace_data_unit_conversion(self, unit, ref_lvl, expected_ref):
+        with expected_protocol(
+                HP856Xx,
+                [
+                    ("TDF M", None),
+                    ("AUNITS?", unit),
+                    ("RL?", ref_lvl),
+                    ("LG?", "10.0"),
+                    ("TRA?", "600,540")
+                ]
+        ) as instr:
+            assert instr.get_trace_data_a() == [
+                round(expected_ref, 2), round(expected_ref - 10, 2)]
+
     def test_fft_trace_window(self):
         with expected_protocol(
                 HP856Xx,
@@ -1042,16 +1078,16 @@ class TestHP8561B:
     def test_conversion_loss(self):
         with expected_protocol(
                 HP8561B,
-                [("CNVLOSS 10.2 DB", None),
-                 ("CNVLOSS?", "10.3")]
+                [("CNVLOSS 30.5 DB", None),
+                 ("CNVLOSS?", "30.4")]
         ) as instr:
-            instr.conversion_loss = 10.2
-            assert instr.conversion_loss == 10.3
+            instr.conversion_loss = 30.5
+            assert instr.conversion_loss == 30.4
 
     def test_fullband(self):
         with expected_protocol(
                 HP8561B,
-                [("FULLBAND K", None)]
+                [("FULBAND K", None)]
         ) as instr:
             instr.set_fullband("K")
 
@@ -1164,16 +1200,16 @@ class TestHP8565E:
     def test_conversion_loss(self):
         with expected_protocol(
                 HP8565E,
-                [("CNVLOSS 10.2 DB", None),
-                 ("CNVLOSS?", "10.3")]
+                [("CNVLOSS 30.5 DB", None),
+                 ("CNVLOSS?", "30.4")]
         ) as instr:
-            instr.conversion_loss = 10.2
-            assert instr.conversion_loss == 10.3
+            instr.conversion_loss = 30.5
+            assert instr.conversion_loss == 30.4
 
     def test_fullband(self):
         with expected_protocol(
                 HP8565E,
-                [("FULLBAND Q", None)]
+                [("FULBAND Q", None)]
         ) as instr:
             instr.set_fullband("Q")
 
