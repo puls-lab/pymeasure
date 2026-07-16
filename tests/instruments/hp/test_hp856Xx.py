@@ -27,7 +27,7 @@ import pytest
 
 from pymeasure.test import expected_protocol
 
-from pymeasure.instruments.hp import HP8560A, HP8561B
+from pymeasure.instruments.hp import HP8560A, HP8561B, HP8565E
 from pymeasure.instruments.hp.hp856Xx import Trace, MixerMode, CouplingMode, DemodulationMode, \
     DetectionModes, AmplitudeUnits, HP856Xx, ErrorCode, FrequencyReference, PeakSearchMode, \
     StatusRegister, SourceLevelingControlMode, SweepCoupleMode, SweepOut, TraceDataFormat, \
@@ -143,7 +143,8 @@ class TestHP856Xx:
         ("frequency_offset", "FOFFSET"),
         ("span", "SP")
     ])
-    @pytest.mark.parametrize("hp_derivat, max_freq", [(HP8560A, 2.9e9), (HP8561B, 6.5e9)])
+    @pytest.mark.parametrize("hp_derivat, max_freq",
+                             [(HP8560A, 2.9e9), (HP8561B, 6.5e9), (HP8565E, 50e9)])
     def test_frequencies(self, function, command, hp_derivat, max_freq):
         with expected_protocol(
                 hp_derivat,
@@ -244,6 +245,20 @@ class TestHP856Xx:
                 [("ERR?", "112,101,111")],
         ) as instr:
             assert instr.errors == [ErrorCode(112), ErrorCode(101), ErrorCode(111)]
+
+    def test_single_error(self):
+        with expected_protocol(
+                HP856Xx,
+                [("ERR?", "112")],
+        ) as instr:
+            assert instr.errors == [ErrorCode(112)]
+
+    def test_no_error(self):
+        with expected_protocol(
+                HP856Xx,
+                [("ERR?", "0")],
+        ) as instr:
+            assert instr.errors == []
 
     def test_empty_errors(self):
         with expected_protocol(
@@ -694,11 +709,13 @@ class TestHP856Xx:
     def test_sweep_time(self):
         with expected_protocol(
                 HP856Xx,
-                [("ST 10.000 S", None),
+                [("ST 1.000000E+01 S", None),
+                 ("ST 5.000000E-05 S", None),
                  ("ST AUTO", None),
                  ("ST?", "10.00")]
         ) as instr:
             instr.sweep_time = 10
+            instr.sweep_time = 50e-6
             instr.sweep_time = "AUTO"
             assert instr.sweep_time == 10
 
@@ -879,6 +896,26 @@ class TestHP856Xx:
         ) as instr:
             assert getattr(instr, function)() == expected_data
 
+    @pytest.mark.parametrize("unit, ref_lvl, expected_ref", [
+        ("DBUV", "107.0", 0.0),
+        ("DBMV", "46.9897", 0.0),
+        ("V", "1.0", 13.01),
+        ("W", "0.001", 0.0),
+    ])
+    def test_trace_data_unit_conversion(self, unit, ref_lvl, expected_ref):
+        with expected_protocol(
+                HP856Xx,
+                [
+                    ("TDF M", None),
+                    ("AUNITS?", unit),
+                    ("RL?", ref_lvl),
+                    ("LG?", "10.0"),
+                    ("TRA?", "600,540")
+                ]
+        ) as instr:
+            assert instr.get_trace_data_a() == [
+                round(expected_ref, 2), round(expected_ref - 10, 2)]
+
     def test_fft_trace_window(self):
         with expected_protocol(
                 HP856Xx,
@@ -1041,16 +1078,16 @@ class TestHP8561B:
     def test_conversion_loss(self):
         with expected_protocol(
                 HP8561B,
-                [("CNVLOSS 10.2 DB", None),
-                 ("CNVLOSS?", "10.3")]
+                [("CNVLOSS 30.5 DB", None),
+                 ("CNVLOSS?", "30.4")]
         ) as instr:
-            instr.conversion_loss = 10.2
-            assert instr.conversion_loss == 10.3
+            instr.conversion_loss = 30.5
+            assert instr.conversion_loss == 30.4
 
     def test_fullband(self):
         with expected_protocol(
                 HP8561B,
-                [("FULLBAND K", None)]
+                [("FULBAND K", None)]
         ) as instr:
             instr.set_fullband("K")
 
@@ -1138,6 +1175,92 @@ class TestHP8561B:
     def test_signal_identification(self):
         with expected_protocol(
                 HP8561B,
+                [("SIGID AUTO", None),
+                 ("SIGID?", "1")]
+        ) as instr:
+            instr.signal_identification = "AUTO"
+            assert instr.signal_identification is True
+
+
+class TestHP8565E:
+    """The HP8565E shares the high-band (external mixer) command set with the HP8561B
+    via :class:`HP856XxWithHighBand`; these tests confirm the wiring on the 50 GHz model.
+    """
+
+    @pytest.mark.parametrize("mixer_mode", [e for e in MixerMode])
+    def test_external_mixer(self, mixer_mode):
+        with expected_protocol(
+                HP8565E,
+                [("MXRMODE " + mixer_mode, None),
+                 ("MXRMODE?", mixer_mode)]
+        ) as instr:
+            instr.mixer_mode = mixer_mode
+            assert instr.mixer_mode == mixer_mode
+
+    def test_conversion_loss(self):
+        with expected_protocol(
+                HP8565E,
+                [("CNVLOSS 30.5 DB", None),
+                 ("CNVLOSS?", "30.4")]
+        ) as instr:
+            instr.conversion_loss = 30.5
+            assert instr.conversion_loss == 30.4
+
+    def test_fullband(self):
+        with expected_protocol(
+                HP8565E,
+                [("FULBAND Q", None)]
+        ) as instr:
+            instr.set_fullband("Q")
+
+    def test_harmonic_number_lock(self):
+        with expected_protocol(
+                HP8565E,
+                [("HNLOCK 10", None),
+                 ("HNLOCK?", "10")]
+        ) as instr:
+            instr.harmonic_number_lock = 10
+            assert instr.harmonic_number_lock == 10
+
+    @pytest.mark.parametrize(
+        "function, command",
+        [
+            ("unlock_harmonic_number", "HUNLK"),
+            ("set_signal_identification_to_center_frequency", "IDCF"),
+            ("peak_preselector", "PP")
+        ]
+    )
+    def test_primitive_commands(self, command, function):
+        """
+        Tests primitive commands which have no parameter or query derivat
+        """
+        with expected_protocol(
+                HP8565E,
+                [(command, None)]
+        ) as instr:
+            getattr(instr, function)()
+
+    def test_mixer_bias(self):
+        with expected_protocol(
+                HP8565E,
+                [("MBIAS -9.900 MA", None),
+                 ("MBIAS?", "5.5")]
+        ) as instr:
+            instr.mixer_bias = -9.9
+            assert instr.mixer_bias == 5.5
+
+    def test_preselector_dac_number(self):
+        with expected_protocol(
+                HP8565E,
+                [("PSDAC 10", None),
+                 ("PSDAC?", "10")]
+        ) as instr:
+            instr.preselector_dac_number = 10
+            assert instr.preselector_dac_number == 10
+
+    def test_signal_identification(self):
+        with expected_protocol(
+                HP8565E,
                 [("SIGID AUTO", None),
                  ("SIGID?", "1")]
         ) as instr:
