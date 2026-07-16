@@ -3226,7 +3226,6 @@ class HP856XxWithHighBand(HP856Xx):
         """,
         validator=strict_range,
         values=[(-10e3), int(10e3)],
-        cast=float,
     )
 
     mixer_bias_enabled = Instrument.setting(
