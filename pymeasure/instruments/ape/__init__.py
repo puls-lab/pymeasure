@@ -23,3 +23,4 @@
 #
 
 from .pulsecheck import PulseCheck
+from .pulsecheck_usb import PulseCheckUSB
