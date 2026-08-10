@@ -23,11 +23,12 @@
 #
 
 import logging
+import time
 from enum import IntFlag
 
 import numpy as np
 
-from pymeasure.instruments import Instrument, SCPIMixin
+from pymeasure.instruments import Instrument, SCPIMixin, cast_or_str
 from pymeasure.instruments.validators import strict_discrete_set, strict_range
 
 log = logging.getLogger(__name__)
@@ -40,12 +41,15 @@ RESOLUTIONS = (200, 500, 1000, 1500, 2000)
 #: Resolution names, in the same order; the software accepts them instead of the index.
 RESOLUTION_NAMES = ("very low", "low", "medium", "high", "very high")
 
+#: Numbers of averaged measurements, in the order the ``STATUS:AVERAGE`` command indexes them.
+AVERAGES = (1, 2, 4, 8, 16)
+
 
 def parse_resolution(reply):
     """Convert a ``STATUS:RESOLUTION?`` reply into a number of samples per trace.
 
-    The manual lists the index, the number of samples and a name as equivalent notations,
-    without stating which one the software answers with, so all three are accepted here.
+    The software answers with the number of samples, while the manual documents the index,
+    the number of samples and a name as equivalent notations, so all three are accepted here.
 
     :param reply: the reply of the instrument (str).
     :returns: number of samples per trace (int).
@@ -55,6 +59,23 @@ def parse_resolution(reply):
         return RESOLUTIONS[RESOLUTION_NAMES.index(reply)]
     value = int(reply)
     return RESOLUTIONS[value] if value < len(RESOLUTIONS) else value
+
+
+def parse_averages(reply):
+    """Convert a ``STATUS:AVERAGE?`` reply into a number of averaged measurements.
+
+    The software answers with a name followed by the number in brackets, e.g. ``'Off'`` or
+    ``'Low (2)'``, while the manual documents the index the set command expects.
+
+    :param reply: the reply of the instrument (str).
+    :returns: number of measurements averaged into one trace (int).
+    """
+    reply = reply.strip().lower()
+    if "(" in reply:
+        return int(reply[reply.index("(") + 1:reply.index(")")])
+    if reply.startswith("off"):
+        return 1
+    return AVERAGES[int(reply)]
 
 
 class OperationStatus(IntFlag):
@@ -132,11 +153,17 @@ class PulseCheckUSB(SCPIMixin, Instrument):
 
         pulse_check = PulseCheckUSB("TCPIP::192.168.0.10::51123::SOCKET")
         print(pulse_check.id)
+        pulse_check.measurement_running = True
         delay, intensity = pulse_check.acf
 
     Do not send these commands to the controller over USB directly, and note that the older
     pulseCheck models with an RS232 port use a different command set, see
     :class:`~pymeasure.instruments.ape.pulsecheck.PulseCheck`.
+
+    The software implements only part of the SCPI standard commands, :attr:`options` and
+    :attr:`next_error` are not among them. It also applies a new setting asynchronously, so
+    reading a property back right after writing it may still yield the previous value; allow
+    for about a second.
 
     :param adapter: pyvisa resource name of the PC running the pulseLink software, or an
         adapter instance.
@@ -149,19 +176,25 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         kwargs.setdefault("read_termination", "\n")
         kwargs.setdefault("timeout", 5000)
         super().__init__(adapter, name, **kwargs)
+        if isinstance(adapter, (int, str)):
+            # the software silently drops commands sent right after opening the connection
+            time.sleep(1)
 
     def read(self):
-        """Read a reply, discarding the padding null bytes the software may add."""
-        return super().read().replace("\x00", "").strip()
+        """Read a reply, discarding the padding null bytes the software may add.
+
+        :raises ValueError: if the software did not understand the command.
+        """
+        reply = super().read().replace("\x00", "").strip()
+        if reply == "Parser error":
+            raise ValueError(f"{self.name} did not understand the command.")
+        return reply
 
     def _read_block(self):
-        """Read a definite length block, as the software sends it in reply to data queries.
+        """Read the payload of a definite length block, whose ``#`` is already consumed.
 
         :returns: the payload of the block (bytes).
         """
-        start = self.read_bytes(1)
-        if start != b"#":
-            raise ValueError(f"Expected a block starting with '#', but got {start!r}.")
         digits = int(self.read_bytes(1))
         return self.read_bytes(int(self.read_bytes(digits)))
 
@@ -172,8 +205,17 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         :returns: a tuple ``(delay, intensity)`` of numpy arrays, with the delay in s.
         """
         self.write(command)
+        start = self.read_bytes(1)
+        if start != b"#":
+            raise ValueError(f"Expected a data block in reply to '{command}', but got "
+                             f"'{start.decode() + self.read()}'.")
+        payload = self._read_block()
+        if not payload or len(payload) % 16:
+            # without valid data the software sends a message instead, e.g. "Time out"
+            raise ValueError(f"{self.name} sent '{payload.decode(errors='replace')}' instead of "
+                             f"trace data, check whether the measurement is running.")
         # the block holds little-endian doubles as [y0, x0, y1, x1, ...] with x the delay in ps
-        values = np.frombuffer(self._read_block(), dtype="<f8")
+        values = np.frombuffer(payload, dtype="<f8")
         return values[1::2] * 1e-12, values[0::2]
 
     device_name = Instrument.measurement(
@@ -254,13 +296,14 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         get_process=FirmwareError,
     )
 
-    measurement_running = Instrument.measurement(
-        "STATUS:START?",
-        """Get whether a measurement is running (bool).
+    measurement_running = Instrument.control(
+        "STATUS:START?", "STATUS:START=%d",
+        """Control whether the measurement is running (bool).
 
-        The remote command set does not include starting or stopping the measurement, this has
-        to be done with the "Start" button of the pulseLink software.
+        Setting this is equivalent to the "Start" button of the pulseLink software. The manual
+        documents the query only, but the set command works as well (pulseLink 1.9.3.12).
         """,
+        validator=strict_discrete_set,
         values={True: 1, False: 0},
         map_values=True,
     )
@@ -270,8 +313,10 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         """Control the number of measurements averaged into one trace
         (int, one of 1, 2, 4, 8, 16).""",
         validator=strict_discrete_set,
-        values={1: 0, 2: 1, 4: 2, 8: 3, 16: 4},
-        map_values=True,
+        values=AVERAGES,
+        set_process=AVERAGES.index,
+        cast=str,
+        get_process=parse_averages,
     )
 
     resolution = Instrument.control(
@@ -380,33 +425,48 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         """
         return self._read_trace("ACF:DISPLAYED_ACF?")
 
-    acf_mean_data = Instrument.measurement(
-        "ACF:MEANDATA?",
+    @property
+    def acf_mean_data(self):
         """Get the mean values of the autocorrelation as a dict with the keys 'average',
-        'delay_max', 'delay_min' (in s), 'intensity_max' and 'intensity_min'.""",
-        separator=";",
-        get_process_list=lambda values: {
-            "average": values[0],
-            "delay_max": values[1] * 1e-12,
-            "delay_min": values[2] * 1e-12,
-            "intensity_max": values[3],
-            "intensity_min": values[4],
-        },
-    )
+        'delay_max', 'delay_min' (in s), 'intensity_max' and 'intensity_min'.
+        """
+        self.write("ACF:MEANDATA?")
+        start = self.read_bytes(1)
+        # the software sends this reply as a plain line, but falls back to a block holding a
+        # message, e.g. "Time out", whenever it has no valid data
+        reply = self._read_block().decode(errors="replace") if start == b"#" \
+            else start.decode() + self.read()
+        values = reply.split(";")
+        if len(values) != 5:
+            raise ValueError(f"{self.name} sent '{reply}' instead of the mean values, check "
+                             f"whether the measurement is running.")
+        average, delay_max, delay_min, intensity_max, intensity_min = map(float, values)
+        return {
+            "average": average,
+            "delay_max": delay_max * 1e-12,
+            "delay_min": delay_min * 1e-12,
+            "intensity_max": intensity_max,
+            "intensity_min": intensity_min,
+        }
 
     fwhm = Instrument.measurement(
         "ACF:FWHM?",
         """Get the FWHM of the measured autocorrelation in s (float).""",
-        get_process=lambda value: value * 1e-12,
+        cast=cast_or_str(float),
+        # float() raises with a helpful message if the software reports a problem instead
+        get_process=lambda value: float(value) * 1e-12,
     )
 
     fit_fwhm = Instrument.measurement(
         "ACF:FITFWHM?",
         """Get the FWHM of the fitted autocorrelation in s (float).
 
-        Use :attr:`fit_type` to select the model that is fitted.
+        Use :attr:`fit_type` to select the model that is fitted; without a fit the software
+        answers with "No fit data" instead of a value.
         """,
-        get_process=lambda value: value * 1e-12,
+        cast=cast_or_str(float),
+        # float() raises with a helpful message if the software has no fit to report
+        get_process=lambda value: float(value) * 1e-12,
     )
 
     fix_shutter_open = Instrument.control(
@@ -434,11 +494,14 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         cast=int,
     )
 
-    crystal_wavelength = Instrument.control(
-        "XTAL:LAMBDATUNE?", "XTAL:LAMBDATUNE=%d",
-        """Control the phase matching crystal position in terms of the laser wavelength in nm
-        (int).""",
-        cast=int,
+    crystal_wavelength = Instrument.setting(
+        "XTAL:LAMBDATUNE=%d",
+        """Set the phase matching crystal to the position calibrated for a laser wavelength in
+        nm (int).
+
+        There is no counterpart to read the wavelength back: ``XTAL:LAMBDATUNE?`` answers with
+        the crystal position, just like :attr:`crystal_position`.
+        """,
     )
 
     crystal_moving = Instrument.measurement(
