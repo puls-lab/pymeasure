@@ -47,9 +47,18 @@ def block(*values):
 def test_id():
     with expected_protocol(
         PulseCheckUSB,
-        [("*IDN?", "APE GmbH, pulseCheck USB 15, S12345, 1.4.0, 2.1")],
+        [("*IDN?", "APE GmbH;pulseLink S12345;Software 1.9.3.12;Firmware 787")],
     ) as inst:
-        assert inst.id == "APE GmbH, pulseCheck USB 15, S12345, 1.4.0, 2.1"
+        assert inst.id == "APE GmbH;pulseLink S12345;Software 1.9.3.12;Firmware 787"
+
+
+def test_parser_error():
+    with expected_protocol(
+        PulseCheckUSB,
+        [("*OPT?", "Parser error")],
+    ) as inst:
+        with pytest.raises(ValueError, match="did not understand"):
+            inst.options
 
 
 def test_read_strips_padding():
@@ -140,17 +149,29 @@ def test_check_errors_empty():
 def test_measurement_running():
     with expected_protocol(
         PulseCheckUSB,
-        [("STATUS:START?", "1")],
+        [("STATUS:START?", "1"), ("STATUS:START=0", None)],
     ) as inst:
         assert inst.measurement_running is True
+        inst.measurement_running = False
 
 
-def test_averages():
+@pytest.mark.parametrize("reply, averages", [
+    ("Off", 1), ("Low (2)", 2), ("Medium (4)", 4), ("High (8)", 8), ("Very high (16)", 16),
+    ("3", 8),  # the index notation documented in the manual
+])
+def test_averages_reply_notations(reply, averages):
     with expected_protocol(
         PulseCheckUSB,
-        [("STATUS:AVERAGE?", "3"), ("STATUS:AVERAGE=4", None)],
+        [("STATUS:AVERAGE?", reply)],
     ) as inst:
-        assert inst.averages == 8
+        assert inst.averages == averages
+
+
+def test_averages_set():
+    with expected_protocol(
+        PulseCheckUSB,
+        [("STATUS:AVERAGE=4", None)],
+    ) as inst:
         inst.averages = 16
 
 
@@ -275,9 +296,19 @@ def test_displayed_acf():
 def test_acf_without_block():
     with expected_protocol(
         PulseCheckUSB,
-        [("ACF:DATA?", b"E")],
+        [("ACF:DATA?", "Parser error")],
     ) as inst:
-        with pytest.raises(ValueError, match="block"):
+        with pytest.raises(ValueError, match="data block"):
+            inst.acf
+
+
+def test_acf_message_instead_of_data():
+    with expected_protocol(
+        PulseCheckUSB,
+        # the software answers like this while it has no valid autocorrelation
+        [("ACF:DATA?", b"#18Time out")],
+    ) as inst:
+        with pytest.raises(ValueError, match="Time out"):
             inst.acf
 
 
@@ -295,6 +326,23 @@ def test_acf_mean_data():
         }
 
 
+def test_acf_mean_data_as_block():
+    with expected_protocol(
+        PulseCheckUSB,
+        [("ACF:MEANDATA?", b"#221" + b"0.4;7.5;-7.5;1.0;0.05")],
+    ) as inst:
+        assert inst.acf_mean_data["delay_max"] == pytest.approx(7.5e-12)
+
+
+def test_acf_mean_data_message():
+    with expected_protocol(
+        PulseCheckUSB,
+        [("ACF:MEANDATA?", b"#18Time out")],
+    ) as inst:
+        with pytest.raises(ValueError, match="Time out"):
+            inst.acf_mean_data
+
+
 def test_fwhm():
     with expected_protocol(
         PulseCheckUSB,
@@ -302,6 +350,15 @@ def test_fwhm():
     ) as inst:
         assert inst.fwhm == pytest.approx(0.35e-12)
         assert inst.fit_fwhm == pytest.approx(0.34e-12)
+
+
+def test_fit_fwhm_without_fit():
+    with expected_protocol(
+        PulseCheckUSB,
+        [("ACF:FITFWHM?", "No fit data")],
+    ) as inst:
+        with pytest.raises(ValueError, match="No fit data"):
+            inst.fit_fwhm
 
 
 def test_shutters():
@@ -325,9 +382,8 @@ def test_crystal_position():
 def test_crystal_wavelength():
     with expected_protocol(
         PulseCheckUSB,
-        [("XTAL:LAMBDATUNE?", "800"), ("XTAL:LAMBDATUNE=1030", None)],
+        [("XTAL:LAMBDATUNE=1030", None)],
     ) as inst:
-        assert inst.crystal_wavelength == 800
         inst.crystal_wavelength = 1030
 
 
