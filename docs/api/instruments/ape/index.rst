@@ -11,3 +11,4 @@ If you are interested in an instrument not included, please consider :doc:`addin
    :maxdepth: 2
 
    pulsecheck
+   pulsecheck_usb
