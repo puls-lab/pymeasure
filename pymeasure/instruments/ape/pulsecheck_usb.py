@@ -163,7 +163,7 @@ class PulseCheckUSB(SCPIMixin, Instrument):
     The software implements only part of the SCPI standard commands, :attr:`options` and
     :attr:`next_error` are not among them. It also applies a new setting asynchronously, so
     reading a property back right after writing it may still yield the previous value; allow
-    for about a second.
+    for about a second, and see :attr:`gain` for the detector settings.
 
     :param adapter: pyvisa resource name of the PC running the pulseLink software, or an
         adapter instance.
@@ -363,7 +363,13 @@ class PulseCheckUSB(SCPIMixin, Instrument):
 
     gain = Instrument.control(
         "DETECTOR:GAIN?", "DETECTOR:GAIN=%d",
-        """Control the detector gain (int strictly from 300 to 1000).""",
+        """Control the detector gain (int strictly from 300 to 1000).
+
+        The software passes the detector settings on to the controller only once a further
+        command reaches it, and answers with the previous value until then. Reading in a loop
+        does not help, since queries do not trigger the update either; write the value twice
+        if the read back has to agree immediately.
+        """,
         validator=strict_range,
         values=(300, 1000),
         cast=int,
@@ -380,7 +386,12 @@ class PulseCheckUSB(SCPIMixin, Instrument):
     sensitivity = Instrument.control(
         "DETECTOR:SENSITIVITY?", "DETECTOR:SENSITIVITY=%d",
         """Control the detector sensitivity (int, 1 for low or 10 for high sensitivity, 100
-        with the optional "HighSen" feature).""",
+        with the optional "HighSen" feature).
+
+        The read back lags behind a change in the same way as the one of :attr:`gain`, and the
+        software passes a new sensitivity on only while the measurement is running, taking up
+        to several seconds to do so.
+        """,
         validator=strict_discrete_set,
         values=(1, 10, 100),
         cast=int,
