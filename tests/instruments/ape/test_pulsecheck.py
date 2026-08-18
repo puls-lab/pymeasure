@@ -124,20 +124,24 @@ def test_sensitivity():
         inst.sensitivity = 300
 
 
-def test_trigger_mode_get():
+@pytest.mark.parametrize("code, mode", [(0, "freerun"), (1, "trigger"),
+                                        (2, "fringe"), (4, "slow")])
+def test_trigger_mode_get(code, mode):
     with expected_protocol(
         PulseCheck,
-        [("GTF", b"\x02")],
+        [("GTF", bytes([code]))],
     ) as inst:
-        assert inst.trigger_mode == "fringe"
+        assert inst.trigger_mode == mode
 
 
-def test_trigger_mode_set():
+@pytest.mark.parametrize("mode, index", [("freerun", 0), ("trigger", 1),
+                                         ("fringe", 2), ("slow", 3)])
+def test_trigger_mode_set(mode, index):
     with expected_protocol(
         PulseCheck,
-        [("TF1", None)],
+        [(f"TF{index}", None)],
     ) as inst:
-        inst.trigger_mode = "freerun"
+        inst.trigger_mode = mode
 
 
 def test_acf():
