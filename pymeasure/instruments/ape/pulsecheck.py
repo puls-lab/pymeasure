@@ -34,9 +34,11 @@ from pymeasure.instruments.validators import strict_discrete_set, strict_range
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
-#: Trigger modes, in the order used by the ``GTF`` get-command (0-indexed);
-#: the ``TF`` set-command expects the 1-indexed position instead.
-TRIGGER_MODES = ("freerun", "trigger", "fringe", "slow")
+#: Trigger modes and the index the ``TF`` set-command expects for each.
+TRIGGER_MODES = {"freerun": 0, "trigger": 1, "fringe": 2, "slow": 3}
+
+#: The ``GTF`` get-command reports the mode bit-coded rather than by its index.
+TRIGGER_MODE_CODES = {0: "freerun", 1: "trigger", 2: "fringe", 4: "slow"}
 
 
 class PulseCheck(Instrument):
@@ -44,6 +46,10 @@ class PulseCheck(Instrument):
 
     Connection is made through an RS232 serial connection, 8 data bits, no
     parity, 1 stop bit, with commands terminated by a carriage return.
+
+    The instrument silently discards a setting if the next command follows too
+    closely, and occasionally even then. Leave at least 0.3 s after writing a
+    property, and read the property back to confirm the setting arrived.
 
     :param adapter: pyvisa resource name of the instrument or an adapter instance.
     :param name: name of the instrument.
@@ -177,13 +183,17 @@ class PulseCheck(Instrument):
 
     trigger_mode = Instrument.control(
         "GTF", "TF%d",
-        """Control the trigger mode (str, one of 'freerun', 'trigger', 'fringe', 'slow').""",
+        """Control the trigger mode (str, one of 'freerun', 'trigger', 'fringe', 'slow').
+
+        Selecting 'trigger' forces :attr:`filter` to 'low', and leaves it there when
+        another mode is selected again.
+        """,
         validator=strict_discrete_set,
-        values=TRIGGER_MODES,
-        # get and set use different (0- vs 1-indexed) encodings, so map manually
+        values=list(TRIGGER_MODES),
+        # get and set use different (bit-coded vs. index) encodings, so map manually
         # instead of via `map_values`, which assumes a single shared encoding.
-        get_process=lambda index: TRIGGER_MODES[index],
-        set_process=lambda mode: TRIGGER_MODES.index(mode) + 1,
+        get_process=lambda code: TRIGGER_MODE_CODES[code],
+        set_process=lambda mode: TRIGGER_MODES[mode],
         cast=int,
     )
 
