@@ -23,18 +23,27 @@
 #
 
 import logging
-from math import log10
-from enum import IntFlag
 from datetime import datetime
+from enum import Enum, IntFlag
+from math import log10
 
 from pymeasure.instruments import Instrument
 from pymeasure.instruments._strenum import StrEnum
 from pymeasure.instruments.common_base import cast_or_str
-from pymeasure.instruments.validators import strict_discrete_set, truncated_discrete_set, \
-    joined_validators, strict_range
+from pymeasure.instruments.validators import (
+    joined_validators,
+    strict_discrete_set,
+    strict_range,
+    truncated_discrete_set,
+)
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+
+
+def _enum_list(enum_cls: type[Enum]) -> list:
+    """Return a list of enum members. Wrapper to satisfy type checkers."""
+    return list(enum_cls)
 
 
 class WindowType(StrEnum):
@@ -544,8 +553,8 @@ class ErrorCode:
         755: ("SYSTEM", "Hardware/firmware interaction; check other errors"),
         900: ("TG UNLVL", "Tracking generator output is unleveled"),
         901: ("TGFrqLmt",
-              "Tracking generator output unleveled because START FREQ is set "
-              "below tracking generator frequency limit (300 kHz)"),
+              ("Tracking generator output unleveled because START FREQ is set "
+              "below tracking generator frequency limit (300 kHz)")),
         902: ("BAD NORM",
               "The state of the stored trace does not match the current state of the analyzer"),
         903: ("&> DLMT", "Unnormalized trace A is off-screen with trace math or normalization on"),
@@ -554,13 +563,13 @@ class ErrorCode:
             "Calibration trace (trace B) is off-screen with trace math or normalization on")
     }
 
-    def __init__(self, code):
+    def __init__(self, code: int | str) -> None:
         """Initialize an ErrorCode.
 
         :param code: Representing an error as id or short description
         :type code: str, int
         """
-        if not (isinstance(code, int) or isinstance(code, str)):
+        if not isinstance(code, (int, str)):
             raise TypeError("Initialization type for code must be integer or string")
 
         try:
@@ -574,10 +583,10 @@ class ErrorCode:
 
         (self.short, self.long) = self.__error_code_list[self.code]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "ErrorCode(\"" + self.short + " - " + self.long + "\")"
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, ErrorCode):
             return NotImplemented
         return self.code == other.code
@@ -597,8 +606,8 @@ def _validate_trace(trace):
     if not isinstance(trace, str):
         raise TypeError(f"Should be of type string but is '{type(trace)}'")
 
-    if trace not in list(Trace):
-        raise ValueError(f"Only accepts values of [{list(Trace)}] but was '{trace}'")
+    if trace not in _enum_list(Trace):
+        raise ValueError(f"Only accepts values of [{_enum_list(Trace)}] but was '{trace}'")
 
 
 class HP856Xx(Instrument):
@@ -752,7 +761,7 @@ class HP856Xx(Instrument):
         """,
         validator=joined_validators(strict_discrete_set, truncated_discrete_set),
         values=[["AUTO", "MAN"], [10, 20, 30, 40, 50, 60, 70]],
-        cast=int,
+        cast=cast_or_str(int),
     )
 
     amplitude_unit = Instrument.control(
@@ -770,7 +779,7 @@ class HP856Xx(Instrument):
 
         """,
         validator=strict_discrete_set,
-        values=[str(e).upper() for e in AmplitudeUnits],
+        values=[str(e).upper() for e in _enum_list(AmplitudeUnits)],
         cast=str,
         set_process=lambda v: str(v).upper(),
     )
@@ -904,7 +913,7 @@ class HP856Xx(Instrument):
 
         """,
         validator=strict_discrete_set,
-        values=list(CouplingMode),
+        values=_enum_list(CouplingMode),
         cast=str,
     )
 
@@ -933,7 +942,7 @@ class HP856Xx(Instrument):
 
         """,
         validator=strict_discrete_set,
-        values=list(DemodulationMode),
+        values=_enum_list(DemodulationMode),
         cast=str,
     )
 
@@ -1006,7 +1015,7 @@ class HP856Xx(Instrument):
 
         """,
         validator=strict_discrete_set,
-        values=list(DetectionModes),
+        values=_enum_list(DetectionModes),
         cast=str,
     )
 
@@ -1376,7 +1385,7 @@ class HP856Xx(Instrument):
 
         """,
         validator=strict_discrete_set,
-        values=list(FrequencyReference),
+        values=_enum_list(FrequencyReference),
         cast=str,
     )
 
@@ -1701,9 +1710,9 @@ class HP856Xx(Instrument):
         if not isinstance(mode, str):
             raise TypeError(f"Should be of type string but is '{type(mode)}'")
 
-        if mode not in list(PeakSearchMode):
+        if mode not in _enum_list(PeakSearchMode):
             raise ValueError(
-                f"Only accepts values of [{list(PeakSearchMode)}] but was '{mode}'")
+                f"Only accepts values of [{_enum_list(PeakSearchMode)}] but was '{mode}'")
 
         self.write(f"MKPK {mode}")
 
@@ -1872,8 +1881,8 @@ class HP856Xx(Instrument):
         to move the measured response within the displayed measurement range of the analyzer. If
         ERR 904 B > DLMT is displayed, the calibration is invalid and a thru or open/short
         calibration must be performed.
-        If active (ON), the 'normalize_trace_data_enabled' command is automatically turned off with an
-        instrument preset (IP) or at power on.
+        If active (ON), the 'normalize_trace_data_enabled' command is automatically
+        turned off with an instrument preset (IP) or at power on.
 
         Type: :code:`bool`
         """,
@@ -1887,8 +1896,9 @@ class HP856Xx(Instrument):
         "NRL?", "NRL %d {amplitude_unit}",
         """
         Control the normalized reference level. It is intended to be used with the
-        :attr:`normalize_trace_data_enabled` command. When using 'normalized_reference_level', the input
-        attenuator and IF step gains are not affected. This function is a trace-offset function
+        :attr:`normalize_trace_data_enabled` command. When using
+        'normalized_reference_level', the input attenuator and IF step gains are not
+        affected. This function is a trace-offset function
         enabling the user to offset the displayed trace without introducing hardware-switching
         errors into the stimulus-response measurement. The unit of measure for
         'normalized_reference_level' is dB. In absolute power mode (dBm), reference level (
@@ -2131,14 +2141,14 @@ class HP856Xx(Instrument):
             instr.preset()
             instr.recall_state(7)
         """
-        values = ["LAST", "PWRON"] + [str(f) for f in range(0, 10)]
-        if not (isinstance(inp, str) or isinstance(inp, int)):
+        values = ["LAST", "PWRON"] + [str(f) for f in range(10)]
+        if not isinstance(inp, (str, int)):
             raise TypeError(f"Should be of type 'str' or 'int' but is '{type(inp)}'")
 
         if str(inp) not in values:
-            raise ValueError(f"Only accepts values of [{values}] but was '{str(inp)}'")
+            raise ValueError(f"Only accepts values of [{values}] but was '{inp!s}'")
 
-        self.write(f"RCLS {str(inp)}")
+        self.write(f"RCLS {inp!s}")
 
     def recall_trace(self, trace, number):
         """Recalls previously saved trace data to the display. See
@@ -2162,7 +2172,7 @@ class HP856Xx(Instrument):
             # reload - at 7 stored trace - to Trace B
             instr.recall_trace(Trace.B, 7)
         """
-        ran = range(0, 8)
+        ran = range(8)
         _validate_trace(trace)
 
         if not isinstance(number, int):
@@ -2209,7 +2219,7 @@ class HP856Xx(Instrument):
     reference_level_calibration = Instrument.control(
         "RLCAL?", "RLCAL %g",
         """
-        Control the calibration of the reference level remotely and returns the
+        Control the calibration of the reference level remotely and return the
         current calibration. To calibrate the reference level, connect the 300 MHz calibration
         signal to the RF input. Set the center frequency to 300 MHz, the frequency span to 20
         MHz, and the reference level to -10 dBm. Use the RLCAL command to move the input signal
@@ -2286,14 +2296,14 @@ class HP856Xx(Instrument):
             instr.span = 20e6
             instr.save_state("PWRON")
         """
-        values = ["PWRON"] + [str(f) for f in range(0, 10)]
-        if not (isinstance(inp, str) or isinstance(inp, int)):
+        values = ["PWRON"] + [str(f) for f in range(10)]
+        if not isinstance(inp, (str, int)):
             raise TypeError(f"Should be of type 'str' or 'int' but is '{type(inp)}'")
 
         if str(inp) not in values:
-            raise ValueError(f"Only accepts values of [{values}] but was '{str(inp)}'")
+            raise ValueError(f"Only accepts values of [{values}] but was '{inp!s}'")
 
-        self.write(f"SAVES {str(inp)}")
+        self.write(f"SAVES {inp!s}")
 
     def save_trace(self, trace, number):
         """Saves the selected trace in the specified trace register.
@@ -2316,7 +2326,7 @@ class HP856Xx(Instrument):
             # reload - at 7 stored trace - to Trace B
             instr.recall_trace(Trace.B, 7)
         """
-        ran = range(0, 8)
+        ran = range(8)
         _validate_trace(trace)
 
         if not isinstance(number, int):
@@ -2407,7 +2417,7 @@ class HP856Xx(Instrument):
         :param status: Bits to emulate a service request
         :type status: :class:`StatusRegister`
         """
-        if status not in range(0, 256):
+        if status not in range(256):
             raise ValueError("Bit mask needs to be between 0 ... 255")
 
         self.write(f"SRQ {status}")
@@ -2498,7 +2508,7 @@ class HP856Xx(Instrument):
         Type: :code:`str` or :class:`SweepCoupleMode`
         """,
         validator=strict_discrete_set,
-        values=list(SweepCoupleMode),
+        values=_enum_list(SweepCoupleMode),
         cast=str,
     )
 
@@ -2513,7 +2523,7 @@ class HP856Xx(Instrument):
         Type: :code:`str` or :class:`SweepOut`
         """,
         validator=strict_discrete_set,
-        values=list(SweepOut),
+        values=_enum_list(SweepOut),
         cast=str,
     )
 
@@ -2532,7 +2542,7 @@ class HP856Xx(Instrument):
             You are doing.
         """,
         validator=strict_discrete_set,
-        values=list(TraceDataFormat),
+        values=_enum_list(TraceDataFormat),
         cast=str,
     )
 
@@ -2589,11 +2599,11 @@ class HP856Xx(Instrument):
         a "T" appears on the left edge of the display.
         """,
         validator=strict_discrete_set,
-        values=list(TriggerMode),
+        values=_enum_list(TriggerMode),
         cast=str,
     )
 
-    def _get_trace_data(self, trace):
+    def _get_trace_data(self, trace: Trace) -> list[float]:
         _validate_trace(trace)
 
         self.write("TDF M")
@@ -2622,7 +2632,7 @@ class HP856Xx(Instrument):
 
         return [round(ref_lvl + (log_scale * ((value - 600) / 60)), 2) for value in values]
 
-    def get_trace_data_a(self):
+    def get_trace_data_a(self) -> list[float]:
         """
         Get the data of trace A as a list.
 
@@ -2631,7 +2641,7 @@ class HP856Xx(Instrument):
         """
         return self._get_trace_data(Trace.A)
 
-    def get_trace_data_b(self):
+    def get_trace_data_b(self) -> list[float]:
         """
         Get the data of trace B as a list.
 
@@ -2639,6 +2649,10 @@ class HP856Xx(Instrument):
         Right now it doesn't support the linear scaling due to the manual just being wrong.
         """
         return self._get_trace_data(Trace.B)
+
+    @staticmethod
+    def _write_list(value: list[float | str]) -> str:
+        return ",".join([str(i) for i in value])
 
     set_trace_data_a = Instrument.setting(
         "TDF P;TRA %s",
@@ -2650,7 +2664,7 @@ class HP856Xx(Instrument):
             The string based method this attribute is using takes its time. Something around 5000ms
             timeout at the adapter seems to work well.
         """,
-        set_process=lambda v: ",".join([str(i) for i in v]),
+        set_process=_write_list,
     )
 
     set_trace_data_b = Instrument.setting(
@@ -2663,10 +2677,10 @@ class HP856Xx(Instrument):
             The string based method this attribute is using takes its time. Something around 5000ms
             timeout at the adapter seems to work well.
         """,
-        set_process=lambda v: ",".join([str(i) for i in v]),
+        set_process=_write_list,
     )
 
-    def trigger_sweep(self):
+    def trigger_sweep(self) -> None:
         """Command the spectrum analyzer to take one full sweep across the trace display.
         Commands following TS are not executed until after the analyzer has finished the trace
         sweep. This ensures that the instrument is set to a known condition before subsequent
@@ -2695,9 +2709,9 @@ class HP856Xx(Instrument):
         if not isinstance(window_mode, str):
             raise TypeError(f"Should be of type string but is '{type(window_mode)}'")
 
-        if window_mode not in list(WindowType):
+        if window_mode not in _enum_list(WindowType):
             raise ValueError(
-                f"Only accepts values of [{list(WindowType)}] but was '{window_mode}'"
+                f"Only accepts values of [{_enum_list(WindowType)}] but was '{window_mode}'"
             )
 
         self.write(f"TWNDOW {trace},{window_mode}")
@@ -2857,7 +2871,7 @@ class HP8560A(HP856Xx):
             Only available with an HP 8560A Option 002.
         """,
         validator=strict_discrete_set,
-        values=list(SourceLevelingControlMode),
+        values=_enum_list(SourceLevelingControlMode),
         cast=str,
     )
 
@@ -3111,7 +3125,7 @@ class HP856XxWithHighBand(HP856Xx):
         if not isinstance(band, str):
             raise TypeError(f"Frequency band should be of type string but is '{type(band)}'")
 
-        if band not in frequency_mapping.keys():
+        if band not in frequency_mapping:
             raise ValueError(f"Should be one of the available bands but is '{band}'")
 
         self._set_frequency_limits(*frequency_mapping[band])
@@ -3210,7 +3224,7 @@ class HP856XxWithHighBand(HP856Xx):
         or supply an external mixer. Takes enum 'MixerMode' or string 'INT', 'EXT'
         """,
         validator=strict_discrete_set,
-        values=list(MixerMode),
+        values=_enum_list(MixerMode),
         cast=str,
     )
 

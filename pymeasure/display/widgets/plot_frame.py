@@ -23,13 +23,13 @@
 #
 
 import logging
-
 import re
+
 import pyqtgraph as pg
 
-from ..curves import ResultsCurve, Crosshairs
+from ...experiment.procedure import ProcedureStatus
+from ..curves import Crosshairs, ResultsCurve
 from ..Qt import QtCore, QtWidgets
-from ...experiment import Procedure
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -94,7 +94,7 @@ class PlotFrame(QtWidgets.QFrame):
         for item in self.plot.items:
             if isinstance(item, self.ResultsClass):
                 if self.check_status:
-                    if item.results.procedure.status == Procedure.RUNNING:
+                    if item.results.procedure.status == ProcedureStatus.RUNNING:
                         item.update_data()
                 else:
                     item.update_data()
