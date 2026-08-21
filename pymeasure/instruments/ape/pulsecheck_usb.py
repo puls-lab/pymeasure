@@ -53,29 +53,42 @@ def parse_resolution(reply):
 
     :param reply: the reply of the instrument (str).
     :returns: number of samples per trace (int).
+    :raises ValueError: if the reply is none of the three notations.
     """
     reply = reply.strip().lower()
     if reply in RESOLUTION_NAMES:
         return RESOLUTIONS[RESOLUTION_NAMES.index(reply)]
     value = int(reply)
-    return RESOLUTIONS[value] if value < len(RESOLUTIONS) else value
+    if value in RESOLUTIONS:
+        return value
+    if 0 <= value < len(RESOLUTIONS):
+        return RESOLUTIONS[value]
+    raise ValueError(f"Cannot interpret '{reply}' as a resolution.")
 
 
 def parse_averages(reply):
     """Convert a ``STATUS:AVERAGE?`` reply into a number of averaged measurements.
 
     The software answers with a name followed by the number in brackets, e.g. ``'Off'`` or
-    ``'Low (2)'``, while the manual documents the index the set command expects.
+    ``'Low (2)'``, while the manual documents the index the set command expects. A bare number
+    is read as the number of measurements where that is possible, and as the index otherwise,
+    so the indices 1, 2 and 4 cannot be told apart from the counts of the same name.
 
     :param reply: the reply of the instrument (str).
     :returns: number of measurements averaged into one trace (int).
+    :raises ValueError: if the reply is neither a name nor a count nor an index.
     """
     reply = reply.strip().lower()
     if "(" in reply:
         return int(reply[reply.index("(") + 1:reply.index(")")])
     if reply.startswith("off"):
         return 1
-    return AVERAGES[int(reply)]
+    value = int(reply)
+    if value in AVERAGES:
+        return value
+    if 0 <= value < len(AVERAGES):
+        return AVERAGES[value]
+    raise ValueError(f"Cannot interpret '{reply}' as a number of averages.")
 
 
 class OperationStatus(IntFlag):
@@ -168,17 +181,20 @@ class PulseCheckUSB(SCPIMixin, Instrument):
     :param adapter: pyvisa resource name of the PC running the pulseLink software, or an
         adapter instance.
     :param name: name of the instrument.
+    :param connection_delay: how long to wait after opening the connection, in s. Only applies
+        if this call opened it; wait yourself when handing in a ready-made adapter.
     :param kwargs: any valid key-word argument for :class:`~pymeasure.instruments.Instrument`.
     """
 
-    def __init__(self, adapter, name="APE pulseCheck USB", **kwargs):
+    def __init__(self, adapter, name="APE pulseCheck USB", connection_delay=1, **kwargs):
         kwargs.setdefault("write_termination", "\r\n")
         kwargs.setdefault("read_termination", "\n")
         kwargs.setdefault("timeout", 5000)
         super().__init__(adapter, name, **kwargs)
         if isinstance(adapter, (int, str)):
-            # the software silently drops commands sent right after opening the connection
-            time.sleep(1)
+            # only when this call opened the connection: the software silently drops commands
+            # sent right after. A ready-made adapter is assumed to be connected already.
+            time.sleep(connection_delay)
 
     def read(self):
         """Read a reply, discarding the padding null bytes the software may add.
@@ -208,7 +224,7 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         start = self.read_bytes(1)
         if start != b"#":
             raise ValueError(f"Expected a data block in reply to '{command}', but got "
-                             f"'{start.decode() + self.read()}'.")
+                             f"'{start.decode(errors='replace') + self.read()}'.")
         payload = self._read_block()
         if not payload or len(payload) % 16:
             # without valid data the software sends a message instead, e.g. "Time out"
@@ -216,7 +232,8 @@ class PulseCheckUSB(SCPIMixin, Instrument):
                              f"trace data, check whether the measurement is running.")
         # the block holds little-endian doubles as [y0, x0, y1, x1, ...] with x the delay in ps
         values = np.frombuffer(payload, dtype="<f8")
-        return values[1::2] * 1e-12, values[0::2]
+        # `values` is a read-only view of the reply, so copy what is not built anew anyway
+        return values[1::2] * 1e-12, values[0::2].copy()
 
     device_name = Instrument.measurement(
         "SYSTEM:DEVICE?",
@@ -446,7 +463,10 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         # the software sends this reply as a plain line, but falls back to a block holding a
         # message, e.g. "Time out", whenever it has no valid data
         reply = self._read_block().decode(errors="replace") if start == b"#" \
-            else start.decode() + self.read()
+            else start.decode(errors="replace") + self.read()
+        # read() cannot spot this itself, since the first character was consumed above
+        if reply == "Parser error":
+            raise ValueError(f"{self.name} did not understand the command.")
         values = reply.split(";")
         if len(values) != 5:
             raise ValueError(f"{self.name} sent '{reply}' instead of the mean values, check "
@@ -510,6 +530,9 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         """Set the phase matching crystal to the position calibrated for a laser wavelength in
         nm (int).
 
+        The manual documents no limits, since the range that makes sense depends on the optics
+        set installed, e.g. 700 to 1100 nm for NIR or 1000 to 1600 nm for IR.
+
         There is no counterpart to read the wavelength back: ``XTAL:LAMBDATUNE?`` answers with
         the crystal position, just like :attr:`crystal_position`.
         """,
@@ -542,4 +565,5 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         if not errors:
             return []
         log.error("%s: %s", self.name, errors)
-        return [errors]
+        # iterating the flag itself would need Python 3.11
+        return [error for error in FirmwareError if error in errors]
