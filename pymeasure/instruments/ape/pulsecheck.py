@@ -49,7 +49,17 @@ class PulseCheck(Instrument):
 
     The instrument silently discards a setting if the next command follows too
     closely, and occasionally even then. Leave at least 0.3 s after writing a
-    property, and read the property back to confirm the setting arrived.
+    property, and read the property back to confirm the setting arrived::
+
+        def set_and_read(instrument, name, value, timeout=10):
+            # write the property until the setting arrives, and return what it reads back
+            deadline = time.monotonic() + timeout
+            while True:
+                setattr(instrument, name, value)
+                time.sleep(0.3)
+                read = getattr(instrument, name)
+                if read == value or time.monotonic() > deadline:
+                    return read
 
     :param adapter: pyvisa resource name of the instrument or an adapter instance.
     :param name: name of the instrument.
@@ -59,13 +69,9 @@ class PulseCheck(Instrument):
 
     def __init__(self, adapter, name="APE PulseCheck", baud_rate=38400, **kwargs):
         self._last_command = ""
-        super().__init__(
-            adapter,
-            name,
-            write_termination="\r",
-            asrl=dict(baud_rate=baud_rate),
-            **kwargs,
-        )
+        kwargs.setdefault("write_termination", "\r")
+        kwargs.setdefault("asrl", {}).setdefault("baud_rate", baud_rate)
+        super().__init__(adapter, name, **kwargs)
 
     def write(self, command):
         """Write a command to the instrument, terminated by a carriage return.
@@ -133,7 +139,7 @@ class PulseCheck(Instrument):
         cast=int,
     )
 
-    running = Instrument.control(
+    measurement_running = Instrument.control(
         "GRS", "RS%d",
         """Control whether the instrument is currently running/scanning (bool).""",
         validator=strict_discrete_set,
@@ -192,7 +198,7 @@ class PulseCheck(Instrument):
         values=list(TRIGGER_MODES),
         # get and set use different (bit-coded vs. index) encodings, so map manually
         # instead of via `map_values`, which assumes a single shared encoding.
-        get_process=lambda code: TRIGGER_MODE_CODES[code],
+        get_process=lambda code: TRIGGER_MODE_CODES.get(code, f"unknown ({code})"),
         set_process=lambda mode: TRIGGER_MODES[mode],
         cast=int,
     )
@@ -219,7 +225,7 @@ class PulseCheck(Instrument):
         """
         self.write(f"TU{int(delta)}")
 
-    def set_alpha(self, alpha, retries=1):
+    def set_alpha(self, alpha, retries=1, timeout=60):
         """Move the turning angle/phase-modulation position to an absolute target.
 
         The instrument only accepts relative tuning steps via :meth:`tune`, so
@@ -230,9 +236,13 @@ class PulseCheck(Instrument):
 
         :param alpha: target turning angle/phase-modulation position (int).
         :param retries: number of additional attempts if tuning gets stuck.
-        :raises TimeoutError: if the target is not reached within the allowed
-            number of attempts.
+        :param timeout: how long to keep tuning altogether, in s.
+        :raises TimeoutError: if the target is not reached within `timeout`, or
+            within the allowed number of attempts.
         """
+        if retries < 0:
+            raise ValueError(f"retries has to be zero or more, not {retries}.")
+        deadline = time.monotonic() + timeout
         total_attempts = retries + 1
         for attempt in range(1, total_attempts + 1):
             self.tune(alpha - self.alpha)
@@ -242,6 +252,10 @@ class PulseCheck(Instrument):
             stuck = False
             while current != alpha:
                 log.debug("alpha = %d", current)
+                if time.monotonic() > deadline:
+                    raise TimeoutError(
+                        f"Tuning alpha to {alpha} timed out at {current} after {timeout} s."
+                    )
                 time.sleep(0.5)
                 if self.alpha == current:
                     time.sleep(0.5)
@@ -257,7 +271,7 @@ class PulseCheck(Instrument):
             f"Tuning alpha to {alpha} got stuck after {total_attempts} attempt(s)."
         )
 
-    def acf(self):
+    def raw_acf(self):
         """Measure one autocorrelation trace as raw (unscaled) detector counts.
 
         The number of samples returned equals :attr:`resolution`.
@@ -272,13 +286,17 @@ class PulseCheck(Instrument):
         raw = self.read_bytes(2 * n_samples)
         return [value >> 6 for value in struct.unpack(f">{n_samples}H", raw)]
 
-    def get_autocorrelation(self):
-        """Measure one autocorrelation trace together with its delay axis.
+    @property
+    def acf(self):
+        """Get one autocorrelation trace together with its delay axis, as a tuple
+        ``(delay, acf)`` of numpy arrays; the delay axis is in seconds, the
+        autocorrelation is in raw detector counts.
 
-        :returns: a tuple ``(delay, acf)`` of numpy arrays; the delay axis is
-            in seconds, the autocorrelation is in raw detector counts.
+        With :attr:`scan_range` set to 0 the delay drive is parked, so every sample
+        is taken at zero delay and the delay axis is all zeros; use :meth:`raw_acf`
+        for the samples themselves.
         """
-        acf = np.array(self.acf())
+        acf = np.array(self.raw_acf())
         scan_range = self.scan_range
         delay = np.linspace(-scan_range / 2, scan_range / 2, len(acf))
         return delay, acf

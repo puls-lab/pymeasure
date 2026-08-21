@@ -33,6 +33,8 @@ from pymeasure.instruments.ape.pulsecheck_usb import (
     FirmwareError,
     InitializationStatus,
     OperationStatus,
+    parse_averages,
+    parse_resolution,
 )
 from pymeasure.test import expected_protocol
 
@@ -42,6 +44,36 @@ def block(*values):
     payload = struct.pack(f"<{len(values)}d", *values)
     length = str(len(payload))
     return f"#{len(length)}{length}".encode() + payload
+
+
+@pytest.mark.parametrize("reply, resolution", [
+    ("very low", 200), ("Low\r", 500), ("very high", 2000),  # the names
+    ("200", 200), ("500", 500), ("2000", 2000),  # the number of samples the software answers
+    ("0", 200), ("1", 500), ("4", 2000),  # the index notation documented in the manual
+])
+def test_parse_resolution(reply, resolution):
+    assert parse_resolution(reply) == resolution
+
+
+@pytest.mark.parametrize("reply", ["-1", "999"])
+def test_parse_resolution_invalid(reply):
+    with pytest.raises(ValueError, match="resolution"):
+        parse_resolution(reply)
+
+
+@pytest.mark.parametrize("reply, averages", [
+    ("Off", 1), ("Low (2)", 2), ("Very high (16)", 16),  # what the software answers
+    ("8", 8), ("16", 16),  # the number of measurements
+    ("0", 1), ("3", 8),  # the index notation documented in the manual
+])
+def test_parse_averages(reply, averages):
+    assert parse_averages(reply) == averages
+
+
+@pytest.mark.parametrize("reply", ["-1", "5", "99"])
+def test_parse_averages_invalid(reply):
+    with pytest.raises(ValueError, match="averages"):
+        parse_averages(reply)
 
 
 def test_id():
@@ -136,6 +168,15 @@ def test_check_errors():
         [("*FRMW?", "2")],
     ) as inst:
         assert inst.check_errors() == [FirmwareError.PARAMETER_ERROR]
+
+
+def test_check_errors_lists_every_error():
+    with expected_protocol(
+        PulseCheckUSB,
+        [("*FRMW?", "3")],
+    ) as inst:
+        assert inst.check_errors() == [FirmwareError.PARSER_ERROR,
+                                       FirmwareError.PARAMETER_ERROR]
 
 
 def test_check_errors_empty():
@@ -281,6 +322,8 @@ def test_acf():
         delay, intensity = inst.acf
         assert delay == pytest.approx([-1.5e-12, 0, 1.5e-12])
         assert intensity == pytest.approx([0.25, 1.0, 0.25])
+        # the reply itself is read-only, the trace handed out must not be
+        assert delay.flags.writeable and intensity.flags.writeable
 
 
 def test_displayed_acf():
@@ -340,6 +383,16 @@ def test_acf_mean_data_message():
         [("ACF:MEANDATA?", b"#18Time out")],
     ) as inst:
         with pytest.raises(ValueError, match="Time out"):
+            inst.acf_mean_data
+
+
+def test_acf_mean_data_parser_error():
+    """The first character is read separately, so read() cannot spot the parser error."""
+    with expected_protocol(
+        PulseCheckUSB,
+        [("ACF:MEANDATA?", "Parser error")],
+    ) as inst:
+        with pytest.raises(ValueError, match="did not understand"):
             inst.acf_mean_data
 
 

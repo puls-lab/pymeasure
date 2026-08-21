@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
+import itertools
 import struct
 
 import pytest
@@ -28,6 +29,17 @@ import pytest
 from pymeasure.instruments.ape import pulsecheck as pulsecheck_module
 from pymeasure.instruments.ape import PulseCheck
 from pymeasure.test import expected_protocol
+
+
+def test_connection_settings_can_be_overridden():
+    """The defaults must not clash with connection settings passed by the user."""
+    with expected_protocol(
+        PulseCheck,
+        [("GTA", b"\x07")],
+        write_termination="\r",
+        asrl={"baud_rate": 9600},
+    ) as inst:
+        assert inst.tau_register == 7
 
 
 def test_gain_get():
@@ -73,13 +85,13 @@ def test_math_enabled():
         inst.math_enabled = False
 
 
-def test_running():
+def test_measurement_running():
     with expected_protocol(
         PulseCheck,
         [("GRS", b"\x01"), ("RS0", None)],
     ) as inst:
-        assert inst.running is True
-        inst.running = False
+        assert inst.measurement_running is True
+        inst.measurement_running = False
 
 
 def test_scan_range():
@@ -144,15 +156,24 @@ def test_trigger_mode_set(mode, index):
         inst.trigger_mode = mode
 
 
-def test_acf():
+def test_trigger_mode_get_unknown_code():
+    """An undocumented code has to be readable, since `settings` reads the mode as well."""
+    with expected_protocol(
+        PulseCheck,
+        [("GTF", b"\x03")],
+    ) as inst:
+        assert inst.trigger_mode == "unknown (3)"
+
+
+def test_raw_acf():
     with expected_protocol(
         PulseCheck,
         [("GRE", b"\x02"), ("GAC", struct.pack(">4H", 64, 128, 192, 256))],
     ) as inst:
-        assert inst.acf() == [1, 2, 3, 4]
+        assert inst.raw_acf() == [1, 2, 3, 4]
 
 
-def test_get_autocorrelation():
+def test_acf():
     with expected_protocol(
         PulseCheck,
         [
@@ -161,7 +182,7 @@ def test_get_autocorrelation():
             ("GSR", b"\x02"),
         ],
     ) as inst:
-        delay, acf = inst.get_autocorrelation()
+        delay, acf = inst.acf
         assert list(acf) == [1, 2, 3, 4]
         assert delay[0] == pytest.approx(-2.5e-12)
         assert delay[-1] == pytest.approx(2.5e-12)
@@ -214,6 +235,29 @@ def test_set_alpha_raises_timeout_error_when_stuck(monkeypatch):
     ) as inst:
         with pytest.raises(TimeoutError):
             inst.set_alpha(100, retries=0)
+
+
+def test_set_alpha_rejects_negative_retries():
+    with expected_protocol(PulseCheck, []) as inst:
+        with pytest.raises(ValueError, match="retries"):
+            inst.set_alpha(100, retries=-1)
+
+
+def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
+    """Verify that a position which keeps moving without arriving does not loop forever."""
+    monkeypatch.setattr(pulsecheck_module.time, "sleep", lambda seconds: None)
+    clock = itertools.count(step=100)
+    monkeypatch.setattr(pulsecheck_module.time, "monotonic", lambda: next(clock))
+    with expected_protocol(
+        PulseCheck,
+        [
+            ("GPM", struct.pack(">H", 90)),  # tune(): current position
+            ("TU10", None),
+            ("GPM", struct.pack(">H", 90)),  # current, after the initial 1 s wait
+        ],
+    ) as inst:
+        with pytest.raises(TimeoutError, match="timed out"):
+            inst.set_alpha(100)
 
 
 def test_tune():

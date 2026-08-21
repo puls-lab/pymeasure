@@ -27,9 +27,9 @@
     pytest tests/instruments/ape/test_pulsecheck_with_device.py \
         --device-address ASRL/dev/ttyUSB0::INSTR
 
-The settings the tests change are read at the start and written back afterwards. The crystal
-is turned by a few steps only and returned to where it started. No pulse train is required;
-the autocorrelation is checked for its shape, not its content.
+The settings the tests change are read at the start and written back afterwards. The turning
+angle is moved by a few steps only and returned to where it started. No pulse train is
+required; the autocorrelation is checked for its shape, not its content.
 """
 
 import time
@@ -44,7 +44,7 @@ from pymeasure.instruments.ape.pulsecheck import TRIGGER_MODES
 #: `filter` comes last, since leaving `trigger_mode` forces it to 'low' (see
 #: `test_trigger_mode_resets_filter`).
 RESTORED_SETTINGS = ("sensitivity", "gain", "scan_range", "averages", "math_enabled",
-                     "running", "trigger_mode", "filter")
+                     "measurement_running", "trigger_mode", "filter")
 
 
 @pytest.fixture(scope="module")
@@ -127,8 +127,8 @@ def test_math_enabled(instrument, value):
 
 
 @pytest.mark.parametrize("value", [False, True])
-def test_running(instrument, value):
-    assert set_and_read(instrument, "running", value) == value
+def test_measurement_running(instrument, value):
+    assert set_and_read(instrument, "measurement_running", value) == value
 
 
 @pytest.mark.parametrize("value", list(TRIGGER_MODES))
@@ -156,30 +156,30 @@ def test_other_trigger_modes_keep_filter(instrument, mode):
     assert instrument.filter == "high"
 
 
-def test_acf(instrument):
-    acf = instrument.acf()
+def test_raw_acf(instrument):
+    acf = instrument.raw_acf()
     assert len(acf) == instrument.resolution
     # the raw 16 bit samples are shifted down by 6 bits
     assert all(0 <= value < 2 ** 10 for value in acf)
 
 
-def test_acf_repeated(instrument):
+def test_raw_acf_repeated(instrument):
     """Consecutive traces must stay in sync, since the reply carries no framing."""
     resolution = instrument.resolution
     for _ in range(5):
-        assert len(instrument.acf()) == resolution
+        assert len(instrument.raw_acf()) == resolution
 
 
-def test_acf_after_other_commands(instrument):
+def test_raw_acf_after_other_commands(instrument):
     """Reading settings in between must not shift the trace's bytes."""
     instrument.settings
-    assert len(instrument.acf()) == instrument.resolution
+    assert len(instrument.raw_acf()) == instrument.resolution
 
 
 @pytest.mark.parametrize("scan_range", [5e-12, 50e-12, 150e-12])
-def test_get_autocorrelation(instrument, scan_range):
+def test_acf(instrument, scan_range):
     assert set_and_read(instrument, "scan_range", scan_range) == scan_range
-    delay, acf = instrument.get_autocorrelation()
+    delay, acf = instrument.acf
     assert len(delay) == len(acf) == instrument.resolution
     assert np.isclose(delay[-1] - delay[0], scan_range)
     assert np.isclose(delay[0], -delay[-1])
