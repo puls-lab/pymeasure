@@ -29,9 +29,9 @@ from pymeasure.test import expected_protocol
 
 from pymeasure.instruments.hp import HP8560A, HP8561B, HP8565E
 from pymeasure.instruments.hp.hp856Xx import Trace, MixerMode, CouplingMode, DemodulationMode, \
-    DetectionModes, AmplitudeUnits, HP856Xx, ErrorCode, FrequencyReference, PeakSearchMode, \
-    StatusRegister, SourceLevelingControlMode, SweepCoupleMode, SweepOut, TraceDataFormat, \
-    TriggerMode, WindowType
+    DetectionModes, AmplitudeUnits, HP856Xx, ErrorCode, ExternalMixerPreselection, \
+    FrequencyReference, PeakSearchMode, StatusRegister, SourceLevelingControlMode, \
+    SweepCoupleMode, SweepOut, TraceDataFormat, TriggerMode, WindowType
 
 
 class TestHP856Xx:
@@ -1075,6 +1075,16 @@ class TestHP8561B:
             instr.mixer_mode = mixer_mode
             assert instr.mixer_mode == mixer_mode
 
+    @pytest.mark.parametrize("preselection", [e for e in ExternalMixerPreselection])
+    def test_external_mixer_preselection(self, preselection):
+        with expected_protocol(
+                HP8561B,
+                [("EXTMXR " + preselection, None),
+                 ("EXTMXR?", preselection)]
+        ) as instr:
+            instr.external_mixer_preselection = preselection
+            assert instr.external_mixer_preselection == preselection
+
     def test_conversion_loss(self):
         with expected_protocol(
                 HP8561B,
@@ -1123,7 +1133,7 @@ class TestHP8561B:
     @pytest.mark.parametrize(
         "function, command",
         [
-            ("unlock_harmonic_number", "HUNLK"),
+            ("unlock_harmonic_number", "HNUNLK"),
             ("set_signal_identification_to_center_frequency", "IDCF"),
             ("peak_preselector", "PP")
         ]
@@ -1197,6 +1207,16 @@ class TestHP8565E:
             instr.mixer_mode = mixer_mode
             assert instr.mixer_mode == mixer_mode
 
+    @pytest.mark.parametrize("preselection", [e for e in ExternalMixerPreselection])
+    def test_external_mixer_preselection(self, preselection):
+        with expected_protocol(
+                HP8565E,
+                [("EXTMXR " + preselection, None),
+                 ("EXTMXR?", preselection)]
+        ) as instr:
+            instr.external_mixer_preselection = preselection
+            assert instr.external_mixer_preselection == preselection
+
     def test_conversion_loss(self):
         with expected_protocol(
                 HP8565E,
@@ -1225,7 +1245,7 @@ class TestHP8565E:
     @pytest.mark.parametrize(
         "function, command",
         [
-            ("unlock_harmonic_number", "HUNLK"),
+            ("unlock_harmonic_number", "HNUNLK"),
             ("set_signal_identification_to_center_frequency", "IDCF"),
             ("peak_preselector", "PP")
         ]
