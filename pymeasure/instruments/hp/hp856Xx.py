@@ -127,6 +127,16 @@ class MixerMode(StrEnum):
     External = "EXT"
 
 
+class ExternalMixerPreselection(StrEnum):
+    """Enumeration to represent the type of external mixer in use."""
+
+    #: Preselected external mixer, e.g. the HP 11974 series
+    Preselected = "PRE"
+
+    #: Unpreselected external mixer, e.g. the HP 11970 series
+    Unpreselected = "UNPR"
+
+
 class SourceLevelingControlMode(StrEnum):
     """Enumeration to represent the Source Leveling Control Mode of the
     HP8560A."""
@@ -3170,7 +3180,7 @@ class HP856XxWithHighBand(HP856Xx):
         automatically sweep first using 6—, then using 8—.
         """
         self._set_frequency_limits(0, self.MAX_FREQUENCY)
-        self.write("HUNLK")
+        self.write("HNUNLK")
 
     def set_signal_identification_to_center_frequency(self):
         """Set the center frequency to the frequency obtained from the command
@@ -3225,6 +3235,22 @@ class HP856XxWithHighBand(HP856Xx):
         """,
         validator=strict_discrete_set,
         values=_enum_list(MixerMode),
+        cast=str,
+    )
+
+    external_mixer_preselection = Instrument.control(
+        "EXTMXR?", "EXTMXR %s",
+        """
+        Control the external mixing mode as either preselected ('PRE') or unpreselected
+        ('UNPR'). Takes enum 'ExternalMixerPreselection' or string 'PRE', 'UNPR'.
+        This command applies only to the selection of the type of external mixer to be used;
+        it does not switch the analyzer from internal to external mixing - use
+        :attr:`mixer_mode` for that. Unpreselected mixers, like the HP 11970 series, need
+        'UNPR'. Selecting 'PRE' switches the rear-panel output J8 to 1.5 V/GHz of the LO
+        frequency, as required by the HP 11974 series preselected mixers.
+        """,
+        validator=strict_discrete_set,
+        values=list(ExternalMixerPreselection),
         cast=str,
     )
 

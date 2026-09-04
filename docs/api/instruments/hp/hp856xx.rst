@@ -239,6 +239,10 @@ Enumerations
     :members:
     :show-inheritance:
 
+.. autoclass:: pymeasure.instruments.hp.hp856Xx.ExternalMixerPreselection
+    :members:
+    :show-inheritance:
+
 .. autoclass:: pymeasure.instruments.hp.hp856Xx.FrequencyReference
     :members:
     :show-inheritance:
