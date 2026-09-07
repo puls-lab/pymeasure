@@ -106,7 +106,13 @@ class AQ6370Series(SCPIMixin, Instrument):
     TRG = Instrument.ChannelCreator(Trace, "TRG")
 
     def authenticate_ethernet(self, username: str, password: str = "") -> None:
-        """Authenticate for an ethernet connection."""
+        """Authenticate for an ethernet connection.
+
+        :param username: User name to log in with.
+        :param password: Password to log in with (empty by default).
+        :raises ConnectionError: If the instrument does not return the expected
+            handshake responses.
+        """
         # Open the connection. It has to be closed at the end.
         # The comparison is case-insensitive because older firmware (e.g. the
         # AQ6370B) answers in lower case.

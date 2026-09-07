@@ -633,13 +633,24 @@ def test_authenticate_ethernet_lowercase_response():
         inst.authenticate_ethernet("user", "password")
 
 
-def test_authenticate_ethernet_failure_raises():
+def test_authenticate_ethernet_open_failure_raises():
+    # An unexpected response to OPEN aborts before the password is sent, and
+    # the raised error reports the received response.
+    with expected_protocol(
+        AQ6370D,
+        [('OPEN "user"', "denied")],
+    ) as inst, pytest.raises(ConnectionError, match="denied"):
+        inst.authenticate_ethernet("user", "password")
+
+
+def test_authenticate_ethernet_password_failure_raises():
+    # A wrong password is rejected after OPEN succeeded, and the raised error
+    # reports the received response.
     with expected_protocol(
         AQ6370D,
         [
             ('OPEN "user"', "AUTHENTICATE CRAM-MD5."),
             ("wrong", "error"),
         ],
-    ) as inst:
-        with pytest.raises(ConnectionError):
-            inst.authenticate_ethernet("user", "wrong")
+    ) as inst, pytest.raises(ConnectionError, match="error"):
+        inst.authenticate_ethernet("user", "wrong")
