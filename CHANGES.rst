@@ -7,6 +7,7 @@ Removed
 - Remove deprecated SCPI methods and properties from :code:`Instrument`.
 - Remove deprecated :code:`control` parameters :code:`command_process` and :code:`kwargs`.
 - Remove deprecated Toptica Ibeamsmart methods: :code:`laser_enabled`, :code:`channel1_enabled` :code:`channel2_enabled`, use :code:`emission` and the driver channels.
+- Remove deprecated Attocube anc300 :code:`host` parameter and deprecated methods :code:`stepu` and :code:`stepd`.
 - Deprecate ESP300 attributes :code:`x`, :code:`y`, :code:`phi`, use :code:`axes` list instead.
 
 Deprecated
@@ -16,6 +17,7 @@ Deprecated
 - Deprecate Thermotron 3800 :code:`initalize_oven`, use :code:`initialize_oven` instead.
 - Deprecate :code:`discreteTruncate` validator, use :code:`truncated_discrete_set_positive` instead.
 - Deprecate :code:`Procedure.refresh_parameters` as it is a no-op now.
+- Deprecate unused :code:`console.py` module with :code:`ProgressBar` and :code:`display`.
 
 Changed
 -------
@@ -28,6 +30,7 @@ Changed
   ``UnknownProcedure`` now returns empty ``parameter_objects``/``metadata_objects`` dicts so loading an unimportable procedure no longer raises.
 - Procedure use :class:`ProcedureStatus` enum instead of status and status message dicts.
 - Rewrite the Thorlabs PRO8000/PRO800 driver to use channels: one channel per populated slot is auto-detected (:code:`:CONFIG:PLUG?`) with LDC, TED and ITC module support, added measured read-backs (actual current, temperature, voltage, ...) and fixed the laser diode polarity command (now :code:`:LDPOL`). The former flat, slot-selecting properties (:code:`LDCCurrent`, :code:`LDCStatus`, ...) are replaced by the channel interfaces.
+- Added auto ranging to Agilent E5270B ``voltage`` and ``current``. It improves measurement resolution but might slightly increase the measurement time.
 
 Version 0.16.0 (2026-05-20)
 ===========================
