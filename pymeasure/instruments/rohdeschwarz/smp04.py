@@ -1,0 +1,151 @@
+#
+# This file is part of the PyMeasure package.
+#
+# Copyright (c) 2013-2026 PyMeasure Developers
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+
+from pymeasure.instruments import Instrument, SCPIMixin
+from pymeasure.instruments.validators import strict_discrete_set, truncated_range
+
+BOOL_MAP = {True: 1, False: 0}
+
+
+class SMP04(SCPIMixin, Instrument):
+    """Rohde & Schwarz SMP04 microwave signal generator (10 MHz to 40 GHz).
+
+    The instrument does not implement the ``FREQuency:MINimum?`` family of
+    queries, so the frequency and level ranges below are taken from the manual.
+    """
+
+    def __init__(self, adapter, name="Rohde & Schwarz SMP04", **kwargs):
+        super().__init__(adapter, name, **kwargs)
+
+    frequency = Instrument.control(
+        "FREQ?", "FREQ %.3f",
+        """Control the CW output frequency in Hz (float from 10e6 to 40e9).""",
+        validator=truncated_range,
+        values=[10e6, 40e9],
+    )
+
+    power = Instrument.control(
+        "POW?", "POW %.2f",
+        """Control the RF output level in dBm (float from -130 to 16).
+
+        The -130 dBm lower limit requires the SMP-B15/B17 step attenuator option
+        (otherwise -20 dBm). +13 dBm is the specified level, +16 dBm the
+        overrange ceiling.""",
+        validator=truncated_range,
+        values=[-130, 16],
+    )
+
+    output_enabled = Instrument.control(
+        "OUTP?", "OUTP %d",
+        """Control whether the RF output is enabled (bool).""",
+        validator=strict_discrete_set,
+        values=BOOL_MAP,
+        map_values=True,
+    )
+
+    frequency_mode = Instrument.control(
+        "FREQ:MODE?", "FREQ:MODE %s",
+        """Control the frequency mode ('CW', 'SWEEP' or 'LIST').""",
+        validator=strict_discrete_set,
+        values=["CW", "SWEEP", "LIST"],
+        cast=str,
+    )
+
+    power_mode = Instrument.control(
+        "POW:MODE?", "POW:MODE %s",
+        """Control the level mode ('CW', 'SWEEP' or 'LIST').""",
+        validator=strict_discrete_set,
+        values=["CW", "SWEEP", "LIST"],
+        cast=str,
+    )
+
+    reference_source = Instrument.control(
+        "ROSC:SOUR?", "ROSC:SOUR %s",
+        """Control the reference oscillator source ('INT' or 'EXT').""",
+        validator=strict_discrete_set,
+        values=["INT", "EXT"],
+        cast=str,
+    )
+
+    reference_frequency = Instrument.control(
+        "ROSC:EXT:FREQ?", "ROSC:EXT:FREQ %g",
+        """Control the expected external reference frequency in Hz
+        (float, typically 5e6, 10e6 or 13e6).""",
+    )
+
+    alc_enabled = Instrument.control(
+        "POW:ALC?", "POW:ALC %d",
+        """Control the automatic level control (bool).""",
+        validator=strict_discrete_set,
+        values=BOOL_MAP,
+        map_values=True,
+    )
+
+    attenuator_mode = Instrument.control(
+        "OUTP:AMOD?", "OUTP:AMOD %s",
+        """Control the attenuator mode ('AUTO' or 'FIX'). 'FIX' freezes the step
+        attenuator, avoiding level glitches while changing power.""",
+        validator=strict_discrete_set,
+        values=["AUTO", "FIX"],
+        cast=str,
+    )
+
+    am_enabled = Instrument.control(
+        "AM:STAT?", "AM:STAT %d",
+        """Control amplitude modulation (bool).""",
+        validator=strict_discrete_set,
+        values=BOOL_MAP,
+        map_values=True,
+    )
+
+    fm_enabled = Instrument.control(
+        "FM:STAT?", "FM:STAT %d",
+        """Control frequency modulation (bool).""",
+        validator=strict_discrete_set,
+        values=BOOL_MAP,
+        map_values=True,
+    )
+
+    pulse_modulation_enabled = Instrument.control(
+        "PULM:STAT?", "PULM:STAT %d",
+        """Control pulse modulation (bool).""",
+        validator=strict_discrete_set,
+        values=BOOL_MAP,
+        map_values=True,
+    )
+
+    questionable_condition = Instrument.measurement(
+        "STAT:QUES:COND?",
+        """Get the questionable status condition register (int). Bit 5 (value 32)
+        flags a frequency problem, such as an unlocked reference.""",
+        cast=int,
+    )
+
+    frequency_ok = Instrument.measurement(
+        "STAT:QUES:COND?",
+        """Get whether the frequency status is fine (bool): bit 5 (FREQuency) of
+        the questionable condition register is clear. A set bit flags a frequency
+        problem such as an unlocked reference.""",
+        get_process=lambda v: not (int(v) & 32),
+    )
