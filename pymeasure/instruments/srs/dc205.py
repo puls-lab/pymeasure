@@ -22,7 +22,7 @@
 # THE SOFTWARE.
 #
 
-from pymeasure.instruments import Instrument, IEEE4882Mixin
+from pymeasure.instruments import IEEE4882Mixin, Instrument
 from pymeasure.instruments.validators import strict_discrete_set, strict_range
 
 BOOL_MAP = {True: 1, False: 0}
@@ -53,6 +53,9 @@ class DC205(IEEE4882Mixin, Instrument):
         )
         # Ensure token-type queries answer with numbers, not text tokens.
         self.write("TOKN 0")
+        # Sync the voltage/scan validators with the instrument's active ranges.
+        self._read_voltage_range()
+        self._read_scan_range()
 
     voltage = Instrument.control(
         "VOLT?", "VOLT %.6f",
@@ -69,22 +72,27 @@ class DC205(IEEE4882Mixin, Instrument):
 
         Setting the range also updates the allowed :attr:`voltage` range, so an
         out-of-range voltage raises a :class:`ValueError` until the range is set.
+        The value is read back from the instrument, which may refuse the change
+        (for example while a scan is armed or running).
         """
-        code = int(self.ask("RNGE?"))
-        value = {v: k for k, v in RANGE_CODES.items()}[code]
-        self._sync_voltage_range(value)
-        return value
+        return self._read_voltage_range()
 
     @voltage_range.setter
     def voltage_range(self, value):
         value = strict_discrete_set(value, list(RANGE_CODES))
         self.write(f"RNGE {RANGE_CODES[value]}")
-        self._sync_voltage_range(value)
+        actual = self._read_voltage_range()
+        if actual != value:
+            raise ValueError(
+                f"DC205 did not switch to the {value} V range (now {actual} V); "
+                "check that no scan is armed or running."
+            )
 
-    def _sync_voltage_range(self, value):
-        """Update the :attr:`voltage` validator to match the given range in V."""
-        limit = RANGE_LIMITS[value]
-        self.voltage_values = [-limit, limit]
+    def _read_voltage_range(self):
+        """Read the active range in V, syncing the :attr:`voltage` validator to it."""
+        value = {v: k for k, v in RANGE_CODES.items()}[int(self.ask("RNGE?"))]
+        self.voltage_values = [-RANGE_LIMITS[value], RANGE_LIMITS[value]]
+        return value
 
     output_enabled = Instrument.control(
         "SOUT?", "SOUT %d",
@@ -128,32 +136,58 @@ class DC205(IEEE4882Mixin, Instrument):
     token_mode_enabled = Instrument.control(
         "TOKN?", "TOKN %d",
         """Control whether token-type queries answer with text tokens instead of
-        numbers (bool). The driver relies on numeric responses, so leave this off.""",
+        numbers (bool). The driver relies on numeric responses, so only ``False``
+        is accepted; setting ``True`` raises a :class:`ValueError`.""",
         validator=strict_discrete_set,
-        values=BOOL_MAP,
+        values={False: 0},
         map_values=True,
     )
 
     # Scan configuration ---------------------------------------------------------------------------
 
-    scan_range = Instrument.control(
-        "SCAR?", "SCAR %d",
-        """Control the scan range in V (int 1, 10 or 100). It can be set
-        independently of :attr:`voltage_range`, but must match it to arm a scan.
-        Changing it resets :attr:`scan_begin` and :attr:`scan_end` to 0 V.""",
-        validator=strict_discrete_set,
-        values=RANGE_CODES,
-        map_values=True,
-    )
+    @property
+    def scan_range(self):
+        """Control the scan range in V (int 1, 10 or 100).
+
+        It can be set independently of :attr:`voltage_range` but must match it to
+        arm a scan. Setting it also updates the allowed :attr:`scan_begin` and
+        :attr:`scan_end` range and, on the instrument, resets both to 0 V. The
+        value is read back, which may be refused while a scan is armed or running.
+        """
+        return self._read_scan_range()
+
+    @scan_range.setter
+    def scan_range(self, value):
+        value = strict_discrete_set(value, list(RANGE_CODES))
+        self.write(f"SCAR {RANGE_CODES[value]}")
+        actual = self._read_scan_range()
+        if actual != value:
+            raise ValueError(
+                f"DC205 did not switch to the {value} V scan range (now {actual} V); "
+                "check that no scan is armed or running."
+            )
+
+    def _read_scan_range(self):
+        """Read the scan range in V, syncing the scan endpoint validators to it."""
+        value = {v: k for k, v in RANGE_CODES.items()}[int(self.ask("SCAR?"))]
+        self.scan_begin_values = [-RANGE_LIMITS[value], RANGE_LIMITS[value]]
+        self.scan_end_values = [-RANGE_LIMITS[value], RANGE_LIMITS[value]]
+        return value
 
     scan_begin = Instrument.control(
         "SCAB?", "SCAB %.6f",
-        """Control the scan start voltage in V (float, within the :attr:`scan_range`).""",
+        """Control the scan start voltage in V (float, within :attr:`scan_range`).""",
+        validator=strict_range,
+        values=[-RANGE_LIMITS[1], RANGE_LIMITS[1]],
+        dynamic=True,
     )
 
     scan_end = Instrument.control(
         "SCAE?", "SCAE %.6f",
-        """Control the scan stop voltage in V (float, within the :attr:`scan_range`).""",
+        """Control the scan stop voltage in V (float, within :attr:`scan_range`).""",
+        validator=strict_range,
+        values=[-RANGE_LIMITS[1], RANGE_LIMITS[1]],
+        dynamic=True,
     )
 
     scan_time = Instrument.control(
