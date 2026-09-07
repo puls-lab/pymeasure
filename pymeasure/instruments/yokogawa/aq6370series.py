@@ -108,9 +108,15 @@ class AQ6370Series(SCPIMixin, Instrument):
     def authenticate_ethernet(self, username: str, password: str = "") -> None:
         """Authenticate for an ethernet connection."""
         # Open the connection. It has to be closed at the end.
-        assert self.ask(f'OPEN "{username}"') == "AUTHENTICATE CRAM-MD5."
+        # The comparison is case-insensitive because older firmware (e.g. the
+        # AQ6370B) answers in lower case.
+        response = self.ask(f'OPEN "{username}"').strip()
+        if response.upper() != "AUTHENTICATE CRAM-MD5.":
+            raise ConnectionError(f"Unexpected response to OPEN: {response!r}")
         # Encrypted password transfer is possible.
-        assert self.ask(password) == "READY"
+        response = self.ask(password).strip()
+        if response.upper() != "READY":
+            raise ConnectionError(f"Authentication failed: {response!r}")
 
     # Control sweep status -------------------------------------------------------------------------
 

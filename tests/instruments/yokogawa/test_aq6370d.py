@@ -618,3 +618,28 @@ def test_trace_get_y_data_of_area():
             1.55001e-6,
             1.55002e-6,
         ]
+
+
+def test_authenticate_ethernet_lowercase_response():
+    # Older firmware (e.g. the AQ6370B) answers in lower case, which must
+    # still be accepted (case-insensitive comparison).
+    with expected_protocol(
+        AQ6370D,
+        [
+            ('OPEN "user"', "authenticate cram-md5."),
+            ("password", "ready"),
+        ],
+    ) as inst:
+        inst.authenticate_ethernet("user", "password")
+
+
+def test_authenticate_ethernet_failure_raises():
+    with expected_protocol(
+        AQ6370D,
+        [
+            ('OPEN "user"', "AUTHENTICATE CRAM-MD5."),
+            ("wrong", "error"),
+        ],
+    ) as inst:
+        with pytest.raises(ConnectionError):
+            inst.authenticate_ethernet("user", "wrong")
