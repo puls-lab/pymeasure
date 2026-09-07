@@ -40,7 +40,11 @@ class SMP04(SCPIMixin, Instrument):
 
     frequency = Instrument.control(
         "FREQ?", "FREQ %.3f",
-        """Control the CW output frequency in Hz (float from 10e6 to 40e9).""",
+        """Control the CW output frequency in Hz (float from 10e6 to 40e9).
+
+        Values outside the range are clipped to the nearest limit. The base model
+        covers 2 GHz to 40 GHz; the 10 MHz to 2 GHz portion requires the SMP-B11
+        frequency range extension.""",
         validator=truncated_range,
         values=[10e6, 40e9],
     )
@@ -49,9 +53,9 @@ class SMP04(SCPIMixin, Instrument):
         "POW?", "POW %.2f",
         """Control the RF output level in dBm (float from -130 to 16).
 
-        The -130 dBm lower limit requires the SMP-B15/B17 step attenuator option
-        (otherwise -20 dBm). +13 dBm is the specified level, +16 dBm the
-        overrange ceiling.""",
+        Values outside the range are clipped to the nearest limit. The -130 dBm
+        lower limit requires the SMP-B15/B17 step attenuator option (otherwise
+        -20 dBm). +13 dBm is the specified level, +16 dBm the overrange ceiling.""",
         validator=truncated_range,
         values=[-130, 16],
     )
@@ -74,9 +78,9 @@ class SMP04(SCPIMixin, Instrument):
 
     power_mode = Instrument.control(
         "POW:MODE?", "POW:MODE %s",
-        """Control the level mode ('CW', 'SWEEP' or 'LIST').""",
+        """Control the level mode ('FIXED', 'SWEEP' or 'LIST').""",
         validator=strict_discrete_set,
-        values=["CW", "SWEEP", "LIST"],
+        values=["FIXED", "SWEEP", "LIST"],
         cast=str,
     )
 
@@ -91,7 +95,9 @@ class SMP04(SCPIMixin, Instrument):
     reference_frequency = Instrument.control(
         "ROSC:EXT:FREQ?", "ROSC:EXT:FREQ %g",
         """Control the expected external reference frequency in Hz
-        (float, typically 5e6, 10e6 or 13e6).""",
+        (float, 1 MHz to 16 MHz in 1 MHz steps).""",
+        validator=strict_discrete_set,
+        values=[n * 1e6 for n in range(1, 17)],
     )
 
     alc_enabled = Instrument.control(

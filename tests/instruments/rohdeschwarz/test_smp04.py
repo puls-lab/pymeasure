@@ -22,6 +22,8 @@
 # THE SOFTWARE.
 #
 
+import pytest
+
 from pymeasure.instruments.rohdeschwarz.smp04 import SMP04
 from pymeasure.test import expected_protocol
 
@@ -58,13 +60,23 @@ def test_frequency_mode_setter():
 
 
 def test_power_mode_getter():
-    with expected_protocol(SMP04, [("POW:MODE?", "CW")]) as inst:
-        assert inst.power_mode == "CW"
+    with expected_protocol(SMP04, [("POW:MODE?", "FIXED")]) as inst:
+        assert inst.power_mode == "FIXED"
 
 
 def test_reference_source_setter():
     with expected_protocol(SMP04, [("ROSC:SOUR EXT", None)]) as inst:
         inst.reference_source = "EXT"
+
+
+def test_reference_frequency_setter():
+    with expected_protocol(SMP04, [("ROSC:EXT:FREQ 1e+07", None)]) as inst:
+        inst.reference_frequency = 10e6
+
+
+def test_reference_frequency_rejects_off_step_value():
+    with expected_protocol(SMP04, []) as inst, pytest.raises(ValueError):
+        inst.reference_frequency = 10.5e6
 
 
 def test_alc_enabled_setter():
