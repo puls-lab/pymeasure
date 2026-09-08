@@ -95,7 +95,7 @@ def running_with_signal(instrument, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            instrument.acf
+            _ = instrument.acf
             return
         except ValueError:
             time.sleep(1)
@@ -203,16 +203,16 @@ def test_crystal(instrument):
 def test_unsupported_scpi_commands(instrument):
     """The software answers "Parser error" to the standard commands it does not implement."""
     with pytest.raises(ValueError):
-        instrument.options
+        _ = instrument.options
     with pytest.raises(ValueError):
-        instrument.next_error
+        _ = instrument.next_error
 
 
 def test_acf_without_measurement(instrument):
     instrument.measurement_running = False
     time.sleep(1)
     with pytest.raises(ValueError, match="measurement"):
-        instrument.acf
+        _ = instrument.acf
 
 
 def test_acf(instrument):

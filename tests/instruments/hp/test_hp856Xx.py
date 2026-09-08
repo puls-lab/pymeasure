@@ -1090,7 +1090,7 @@ class TestHP8561B:
             instr.mixer_mode = mixer_mode
             assert instr.mixer_mode == mixer_mode
 
-    @pytest.mark.parametrize("preselection", list(ExternalMixerPreselection))  # type: ignore
+    @pytest.mark.parametrize("preselection", [e for e in ExternalMixerPreselection])
     def test_external_mixer_preselection(self, preselection):
         with expected_protocol(
                 HP8561B,
@@ -1115,6 +1115,19 @@ class TestHP8561B:
                 [("FULBAND K", None)]
         ) as instr:
             instr.set_fullband("K")
+
+    def test_unlock_harmonic_number_widens_frequency_limits(self):
+        """After unlocking the harmonic number an external-mixing center frequency
+        above MAX_FREQUENCY (here 18 GHz on the 6.5 GHz HP8561B) is accepted."""
+        with expected_protocol(
+                HP8561B,
+                [("FULBAND K", None),
+                 ("HNUNLK", None),
+                 ("CF 1.80000000000E+10 Hz", None)]
+        ) as instr:
+            instr.set_fullband("K")
+            instr.unlock_harmonic_number()
+            instr.center_frequency = 18e9
 
     def test_fullband_exceptions(self):
         with expected_protocol(
@@ -1208,8 +1221,8 @@ class TestHP8561B:
 
 
 class TestHP8565E:
-    """The HP8565E shares the high-band (external mixer) command set with the HP8561B
-    via :class:`HP856XxWithHighBand`; these tests confirm the wiring on the 50 GHz model.
+    """Confirm the 50 GHz HP8565E wiring of the high-band (external mixer) command set
+    shared with the HP8561B via :class:`HP856XxWithHighBand`.
     """
 
     @pytest.mark.parametrize("mixer_mode", [e for e in MixerMode])
@@ -1222,7 +1235,7 @@ class TestHP8565E:
             instr.mixer_mode = mixer_mode
             assert instr.mixer_mode == mixer_mode
 
-    @pytest.mark.parametrize("preselection", list(ExternalMixerPreselection))  # type: ignore
+    @pytest.mark.parametrize("preselection", [e for e in ExternalMixerPreselection])
     def test_external_mixer_preselection(self, preselection):
         with expected_protocol(
                 HP8565E,

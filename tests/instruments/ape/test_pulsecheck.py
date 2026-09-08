@@ -21,13 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-import itertools
 import struct
 
 import pytest
 
-from pymeasure.instruments.ape import pulsecheck as pulsecheck_module
 from pymeasure.instruments.ape import PulseCheck
+from pymeasure.instruments.ape import pulsecheck as pulsecheck_module
 from pymeasure.test import expected_protocol
 
 
@@ -232,21 +231,19 @@ def test_set_alpha_raises_timeout_error_when_stuck(monkeypatch):
             ("GPM", struct.pack(">H", 90)),  # stuck-check 1/2: unchanged
             ("GPM", struct.pack(">H", 90)),  # stuck-check 2/2: unchanged -> give up
         ],
-    ) as inst:
-        with pytest.raises(TimeoutError):
-            inst.set_alpha(100, retries=0)
+    ) as inst, pytest.raises(TimeoutError):
+        inst.set_alpha(100, retries=0)
 
 
 def test_set_alpha_rejects_negative_retries():
-    with expected_protocol(PulseCheck, []) as inst:
-        with pytest.raises(ValueError, match="retries"):
-            inst.set_alpha(100, retries=-1)
+    with expected_protocol(PulseCheck, []) as inst, pytest.raises(ValueError, match="retries"):
+        inst.set_alpha(100, retries=-1)
 
 
 def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
     """Verify that a position which keeps moving without arriving does not loop forever."""
     monkeypatch.setattr(pulsecheck_module.time, "sleep", lambda seconds: None)
-    clock = itertools.count(step=100)
+    clock = iter([0, 10, 100])  # deadline = 60; tripped right after the settling wait
     monkeypatch.setattr(pulsecheck_module.time, "monotonic", lambda: next(clock))
     with expected_protocol(
         PulseCheck,
@@ -255,9 +252,24 @@ def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
             ("TU10", None),
             ("GPM", struct.pack(">H", 90)),  # current, after the initial 1 s wait
         ],
-    ) as inst:
-        with pytest.raises(TimeoutError, match="timed out"):
-            inst.set_alpha(100)
+    ) as inst, pytest.raises(TimeoutError, match="timed out"):
+        inst.set_alpha(100)
+
+
+def test_set_alpha_raises_when_target_reached_after_timeout(monkeypatch):
+    """Reaching the target after the deadline must report a timeout, not success."""
+    monkeypatch.setattr(pulsecheck_module.time, "sleep", lambda seconds: None)
+    clock = iter([0, 10, 20, 100])  # deadline = 60; only the success check at 100 is past it
+    monkeypatch.setattr(pulsecheck_module.time, "monotonic", lambda: next(clock))
+    with expected_protocol(
+        PulseCheck,
+        [
+            ("GPM", struct.pack(">H", 90)),  # tune(): current position
+            ("TU10", None),
+            ("GPM", struct.pack(">H", 100)),  # settled on the target, but past the deadline
+        ],
+    ) as inst, pytest.raises(TimeoutError, match="timed out"):
+        inst.set_alpha(100)
 
 
 def test_tune():

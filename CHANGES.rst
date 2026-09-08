@@ -29,13 +29,15 @@ Changed
   ``Procedure.refresh_parameters`` is now a deprecated no-op (retained for API compatibility).
   ``UnknownProcedure`` now returns empty ``parameter_objects``/``metadata_objects`` dicts so loading an unimportable procedure no longer raises.
 - Procedure use :class:`ProcedureStatus` enum instead of status and status message dicts.
-- Rewrite the Thorlabs PRO8000/PRO800 driver to use channels: one channel per populated slot is auto-detected (:code:`:CONFIG:PLUG?`) with LDC, TED and ITC module support, added measured read-backs (actual current, temperature, voltage, ...) and fixed the laser diode polarity command (now :code:`:LDPOL`). The former flat, slot-selecting properties (:code:`LDCCurrent`, :code:`LDCStatus`, ...) are replaced by the channel interfaces.
+- Rewrite the Thorlabs PRO8000/PRO800 driver to use channels: one channel per populated slot is auto-detected (:code:`:CONFIG:PLUG?`) with LDC, TED, ITC and PDA (:class:`PDAChannel`, whose ports are :class:`PDAPortChannel`) module support, added measured read-backs (actual current, temperature, voltage, ...) and fixed the laser diode polarity command (now :code:`:LDPOL`). The former flat, slot-selecting properties (:code:`LDCCurrent`, :code:`LDCStatus`, ...) are replaced by the channel interfaces.
 - Added auto ranging to Agilent E5270B ``voltage`` and ``current``. It improves measurement resolution but might slightly increase the measurement time.
 
 Instruments
 -----------
 - Add Stanford Research Systems DC205 precision DC voltage source.
 - Add Rohde & Schwarz SMP04 microwave signal generator.
+- Add HP 8565E spectrum analyzer and extract a shared high-band base class from the HP856Xx family; fix manual-verified value ranges and command typos (@niklasschulz99)
+- Add APE PulseCheck autocorrelator with RS232 (:class:`PulseCheck`) and USB/PulseLink (:class:`PulseCheckUSB`) interfaces (@niklasschulz99)
 
 Version 0.16.0 (2026-05-20)
 ===========================

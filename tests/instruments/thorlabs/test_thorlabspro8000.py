@@ -24,20 +24,21 @@
 
 import pytest
 
-from pymeasure.test import expected_protocol
 from pymeasure.instruments.thorlabs.thorlabspro8000 import (
-    ThorlabsPro8000,
-    LDCChannel,
-    TEDChannel,
     ITCChannel,
+    LDCChannel,
     PDAChannel,
     PDAPortChannel,
+    TEDChannel,
+    ThorlabsPro8000,
 )
+from pymeasure.test import expected_protocol
 
 # Module map used for most tests: slot 1 = LDC, slot 2 = TED, slot 3 = ITC,
-# slot 4 = PDA, the remaining slots are empty.
-# ``:CONFIG:PLUG?`` returns (type, subtype) pairs.
-CONFIG = "191,0,223,0,159,0,107,0,0,0,0,0,0,0,0,0"
+# slot 4 = PDA8000-2 (two ports), the remaining slots are empty.
+# ``:CONFIG:PLUG?`` returns (type, subtype) pairs; for a PDA the subtype is the
+# model variant and equals the port count (1 = PDA8000-1, 2 = PDA8000-2).
+CONFIG = "191,0,223,0,159,0,107,2,0,0,0,0,0,0,0,0"
 
 # Communication that every connection performs in ``__init__``.
 INIT = [
@@ -56,11 +57,24 @@ def test_init():
         assert isinstance(inst.channels[4], PDAChannel)
 
 
-def test_pda_has_two_ports():
+def test_pda8000_2_has_two_ports():
+    """A PDA8000-2 (subtype 2) exposes two ports."""
     with expected_protocol(ThorlabsPro8000, INIT) as inst:
         assert set(inst.channels[4].ports.keys()) == {1, 2}
         assert isinstance(inst.channels[4].port_1, PDAPortChannel)
         assert isinstance(inst.channels[4].port_2, PDAPortChannel)
+
+
+def test_pda8000_1_has_one_port():
+    """A PDA8000-1 (subtype 1) exposes a single port and no second one."""
+    config = "107,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0"
+    with expected_protocol(
+        ThorlabsPro8000,
+        [(":SYST:ANSW VALUE", None), (":CONFIG:PLUG?", config)],
+    ) as inst:
+        assert set(inst.channels[1].ports.keys()) == {1}
+        assert isinstance(inst.channels[1].port_1, PDAPortChannel)
+        assert not hasattr(inst.channels[1], "port_2")
 
 
 def test_pda_port_selects_slot_and_port():
@@ -190,9 +204,8 @@ def test_ldc_polarity_getter():
 
 
 def test_ldc_polarity_invalid():
-    with expected_protocol(ThorlabsPro8000, INIT) as inst:
-        with pytest.raises(ValueError):
-            inst.channels[1].ld_polarity = "XX"
+    with expected_protocol(ThorlabsPro8000, INIT) as inst, pytest.raises(ValueError):
+        inst.channels[1].ld_polarity = "XX"
 
 
 def test_ldc_mode_setter():
@@ -244,9 +257,8 @@ def test_ted_pid_share_setter():
 
 
 def test_ted_pid_share_out_of_range():
-    with expected_protocol(ThorlabsPro8000, INIT) as inst:
-        with pytest.raises(ValueError):
-            inst.channels[2].pid_i_share = 150
+    with expected_protocol(ThorlabsPro8000, INIT) as inst, pytest.raises(ValueError):
+        inst.channels[2].pid_i_share = 150
 
 
 def test_itc_has_both_laser_and_tec():

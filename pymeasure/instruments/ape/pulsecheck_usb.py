@@ -92,7 +92,7 @@ def parse_averages(reply):
 
 
 class OperationStatus(IntFlag):
-    """Operation status of the software, as returned by ``*OPER?``."""
+    """Represent the operation status of the software, as returned by ``*OPER?``."""
 
     DISCONNECTED = 1 << 0
     VISA_CONNECTED = 1 << 1
@@ -108,14 +108,14 @@ class OperationStatus(IntFlag):
 
 
 class InitializationStatus(IntFlag):
-    """Initialization status of the device, as returned by ``*INIT?``."""
+    """Represent the initialization status of the device, as returned by ``*INIT?``."""
 
     LINK_OK = 1 << 2
     OPTIC_OK = 1 << 3
 
 
 class BusyStatus(IntFlag):
-    """Busy status of the device, as returned by ``*BUSY?``."""
+    """Represent the busy status of the device, as returned by ``*BUSY?``."""
 
     IDLE = 1 << 0
     NEW_DATA = 1 << 1
@@ -124,7 +124,7 @@ class BusyStatus(IntFlag):
 
 
 class DataError(IntFlag):
-    """Quality problems of the measured autocorrelation, as returned by ``*ERR?``."""
+    """Represent quality problems of the measured autocorrelation, as returned by ``*ERR?``."""
 
     SIGNAL_TOO_LOW = 1 << 0
     SIGNAL_TOO_HIGH = 1 << 1
@@ -136,7 +136,7 @@ class DataError(IntFlag):
 
 
 class FirmwareError(IntFlag):
-    """Firmware errors of the controller, as returned by ``*FRMW?``."""
+    """Represent the firmware errors of the controller, as returned by ``*FRMW?``."""
 
     PARSER_ERROR = 1 << 0
     PARAMETER_ERROR = 1 << 1
@@ -154,7 +154,7 @@ class FirmwareError(IntFlag):
 
 
 class PulseCheckUSB(SCPIMixin, Instrument):
-    """APE pulseCheck USB autocorrelator.
+    """Represent the APE pulseCheck USB autocorrelator.
 
     The autocorrelator is attached via USB to a Windows PC running the APE pulseLink control
     software, and that software provides the remote interface: it has to be running, and its
@@ -565,5 +565,5 @@ class PulseCheckUSB(SCPIMixin, Instrument):
         if not errors:
             return []
         log.error("%s: %s", self.name, errors)
-        # iterating the flag itself would need Python 3.11
-        return [error for error in FirmwareError if error in errors]
+        # test each flag bit with a bitwise AND; iterating `errors` itself would need Python 3.11
+        return [error for error in FirmwareError if error & errors]

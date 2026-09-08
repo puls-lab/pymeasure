@@ -206,17 +206,17 @@ class PulseCheck(Instrument):
     @property
     def settings(self):
         """Get a dictionary of the instrument's current settings."""
-        return dict(
-            sensitivity=self.sensitivity,
-            gain=self.gain,
-            scan_range=self.scan_range,
-            filter=self.filter,
-            averages=self.averages,
-            resolution=self.resolution,
-            alpha=self.alpha,
-            math_enabled=self.math_enabled,
-            trigger_mode=self.trigger_mode,
-        )
+        return {
+            "sensitivity": self.sensitivity,
+            "gain": self.gain,
+            "scan_range": self.scan_range,
+            "filter": self.filter,
+            "averages": self.averages,
+            "resolution": self.resolution,
+            "alpha": self.alpha,
+            "math_enabled": self.math_enabled,
+            "trigger_mode": self.trigger_mode,
+        }
 
     def tune(self, delta):
         """Adjust the turning angle/phase-modulation position by a relative amount.
@@ -243,19 +243,27 @@ class PulseCheck(Instrument):
         if retries < 0:
             raise ValueError(f"retries has to be zero or more, not {retries}.")
         deadline = time.monotonic() + timeout
+
+        def raise_if_timed_out(position):
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"Tuning alpha to {alpha} timed out at {position} after {timeout} s."
+                )
+
         total_attempts = retries + 1
         for attempt in range(1, total_attempts + 1):
-            self.tune(alpha - self.alpha)
+            current = self.alpha
+            # don't send a tuning command once the deadline has passed
+            raise_if_timed_out(current)
+            self.tune(alpha - current)
 
             time.sleep(1)
             current = self.alpha
+            raise_if_timed_out(current)
             stuck = False
             while current != alpha:
                 log.debug("alpha = %d", current)
-                if time.monotonic() > deadline:
-                    raise TimeoutError(
-                        f"Tuning alpha to {alpha} timed out at {current} after {timeout} s."
-                    )
+                raise_if_timed_out(current)
                 time.sleep(0.5)
                 if self.alpha == current:
                     time.sleep(0.5)
@@ -264,6 +272,7 @@ class PulseCheck(Instrument):
                         break
                 current = self.alpha
             if not stuck:
+                raise_if_timed_out(current)
                 return
             log.warning("Tuning got stuck at alpha = %d (attempt %d/%d).",
                         current, attempt, total_attempts)

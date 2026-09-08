@@ -128,7 +128,7 @@ class MixerMode(StrEnum):
 
 
 class ExternalMixerPreselection(StrEnum):
-    """Enumeration to represent the type of external mixer in use."""
+    """Represent the type of external mixer in use."""
 
     #: Preselected external mixer, e.g. the HP 11974 series
     Preselected = "PRE"
@@ -573,6 +573,9 @@ class ErrorCode:
             "Calibration trace (trace B) is off-screen with trace math or normalization on")
     }
 
+    # integer representation of error code
+    code = 0
+
     def __init__(self, code: int | str) -> None:
         """Initialize an ErrorCode.
 
@@ -583,7 +586,6 @@ class ErrorCode:
             raise TypeError("Initialization type for code must be integer or string")
 
         try:
-            # integer representation of error code
             self.code = int(code)
             if self.code not in self.__error_code_list:
                 raise ValueError()
@@ -602,6 +604,7 @@ class ErrorCode:
         return self.code == other.code
 
     def __hash__(self):
+        """Hash the error code by its integer id."""
         return hash(self.code)
 
 
@@ -1891,8 +1894,8 @@ class HP856Xx(Instrument):
         to move the measured response within the displayed measurement range of the analyzer. If
         ERR 904 B > DLMT is displayed, the calibration is invalid and a thru or open/short
         calibration must be performed.
-        If active (ON), the 'normalize_trace_data_enabled' command is automatically
-        turned off with an instrument preset (IP) or at power on.
+        If active (ON), the 'normalize_trace_data_enabled' command is automatically turned off
+        with an instrument preset (IP) or at power on.
 
         Type: :code:`bool`
         """,
@@ -1906,9 +1909,9 @@ class HP856Xx(Instrument):
         "NRL?", "NRL %d {amplitude_unit}",
         """
         Control the normalized reference level. It is intended to be used with the
-        :attr:`normalize_trace_data_enabled` command. When using
-        'normalized_reference_level', the input attenuator and IF step gains are not
-        affected. This function is a trace-offset function
+        :attr:`normalize_trace_data_enabled` command. When using 'normalized_reference_level',
+        the input attenuator and IF step gains are not affected. This function is a trace-offset
+        function
         enabling the user to offset the displayed trace without introducing hardware-switching
         errors into the stimulus-response measurement. The unit of measure for
         'normalized_reference_level' is dB. In absolute power mode (dBm), reference level (
@@ -2152,7 +2155,7 @@ class HP856Xx(Instrument):
             instr.recall_state(7)
         """
         values = ["LAST", "PWRON"] + [str(f) for f in range(10)]
-        if not isinstance(inp, (str, int)):
+        if not (isinstance(inp, (str, int))):
             raise TypeError(f"Should be of type 'str' or 'int' but is '{type(inp)}'")
 
         if str(inp) not in values:
@@ -2253,6 +2256,7 @@ class HP856Xx(Instrument):
             level = instr.marker_amplitude
             rlcal = instr.reference_level_calibration - int((level + 10) / 0.17)
             instr.reference_level_calibration = rlcal
+
         """,
         cast=int,
         validator=strict_range,
@@ -2307,7 +2311,7 @@ class HP856Xx(Instrument):
             instr.save_state("PWRON")
         """
         values = ["PWRON"] + [str(f) for f in range(10)]
-        if not isinstance(inp, (str, int)):
+        if not (isinstance(inp, (str, int))):
             raise TypeError(f"Should be of type 'str' or 'int' but is '{type(inp)}'")
 
         if str(inp) not in values:
@@ -3024,7 +3028,7 @@ class HP8560A(HP856Xx):
 
 
 class HP856XxWithHighBand(HP856Xx):
-    """Common base class for HP 856x spectrum analyzers with high-band operation.
+    """Provide the high-band command set shared by the microwave HP 856x spectrum analyzers.
 
     It bundles the external-mixer, harmonic-mixing and preselector functions that are
     shared by the microwave models of the family (e.g. the HP 8561B and HP 8565E). These
@@ -3034,6 +3038,11 @@ class HP856XxWithHighBand(HP856Xx):
     Don't use this class directly - use one of its derivative classes such as
     :class:`HP8561B` or :class:`HP8565E`.
     """
+
+    #: Highest frequency reachable with an external mixer (top of band J, see
+    #: :meth:`set_fullband`). Used as the upper limit once harmonic-number locking
+    #: is released with :meth:`unlock_harmonic_number`.
+    MAX_FREQUENCY_EXTERNAL_MIXER = 325e9
 
     conversion_loss = Instrument.control(
         "CNVLOSS?", "CNVLOSS %s DB",
@@ -3179,7 +3188,10 @@ class HP856XxWithHighBand(HP856Xx):
         span from 18 GHz to 40 GHz. In this case, the analyzer will
         automatically sweep first using 6—, then using 8—.
         """
-        self._set_frequency_limits(0, self.MAX_FREQUENCY)
+        # Once the harmonic is unlocked the sweep may span the whole external-mixing
+        # range, so widen the limits accordingly instead of restricting to the
+        # fundamental-mixing MAX_FREQUENCY.
+        self._set_frequency_limits(0, self.MAX_FREQUENCY_EXTERNAL_MIXER)
         self.write("HNUNLK")
 
     def set_signal_identification_to_center_frequency(self):
@@ -3250,7 +3262,7 @@ class HP856XxWithHighBand(HP856Xx):
         frequency, as required by the HP 11974 series preselected mixers.
         """,
         validator=strict_discrete_set,
-        values=list(ExternalMixerPreselection),
+        values=_enum_list(ExternalMixerPreselection),
         cast=str,
     )
 
@@ -3304,7 +3316,7 @@ class HP856XxWithHighBand(HP856Xx):
 
 
 class HP8561B(HP856XxWithHighBand):
-    """Represents the HP 8561B Spectrum Analyzer and provides a high-level
+    """Represent the HP 8561B Spectrum Analyzer and provide a high-level
     interface for interacting with the instrument.
 
     .. code-block:: python
@@ -3333,7 +3345,7 @@ class HP8561B(HP856XxWithHighBand):
 
 
 class HP8565E(HP856XxWithHighBand):
-    """Represents the HP 8565E Spectrum Analyzer and provides a high-level
+    """Represent the HP 8565E Spectrum Analyzer and provide a high-level
     interface for interacting with the instrument.
 
     .. code-block:: python
