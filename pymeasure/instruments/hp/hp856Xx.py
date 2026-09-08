@@ -2256,6 +2256,7 @@ class HP856Xx(Instrument):
             level = instr.marker_amplitude
             rlcal = instr.reference_level_calibration - int((level + 10) / 0.17)
             instr.reference_level_calibration = rlcal
+
         """,
         cast=int,
         validator=strict_range,
