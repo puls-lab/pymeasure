@@ -32,6 +32,10 @@ Changed
 - Rewrite the Thorlabs PRO8000/PRO800 driver to use channels: one channel per populated slot is auto-detected (:code:`:CONFIG:PLUG?`) with LDC, TED and ITC module support, added measured read-backs (actual current, temperature, voltage, ...) and fixed the laser diode polarity command (now :code:`:LDPOL`). The former flat, slot-selecting properties (:code:`LDCCurrent`, :code:`LDCStatus`, ...) are replaced by the channel interfaces.
 - Added auto ranging to Agilent E5270B ``voltage`` and ``current``. It improves measurement resolution but might slightly increase the measurement time.
 
+Instruments
+-----------
+- Add Stanford Research Systems DC205 precision DC voltage source.
+
 Version 0.16.0 (2026-05-20)
 ===========================
 
