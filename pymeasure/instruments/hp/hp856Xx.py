@@ -128,7 +128,7 @@ class MixerMode(StrEnum):
 
 
 class ExternalMixerPreselection(StrEnum):
-    """Enumeration to represent the type of external mixer in use."""
+    """Represent the type of external mixer in use."""
 
     #: Preselected external mixer, e.g. the HP 11974 series
     Preselected = "PRE"
@@ -582,11 +582,10 @@ class ErrorCode:
         :param code: Representing an error as id or short description
         :type code: str, int
         """
-        if not (isinstance(code, int) or isinstance(code, str)):
+        if not isinstance(code, (int, str)):
             raise TypeError("Initialization type for code must be integer or string")
 
         try:
-            # integer representation of error code
             self.code = int(code)
             if self.code not in self.__error_code_list:
                 raise ValueError()
@@ -605,6 +604,7 @@ class ErrorCode:
         return self.code == other.code
 
     def __hash__(self):
+        """Hash the error code by its integer id."""
         return hash(self.code)
 
 
@@ -2154,7 +2154,7 @@ class HP856Xx(Instrument):
             instr.preset()
             instr.recall_state(7)
         """
-        values = ["LAST", "PWRON"] + [str(f) for f in range(0, 10)]
+        values = ["LAST", "PWRON"] + [str(f) for f in range(10)]
         if not (isinstance(inp, (str, int))):
             raise TypeError(f"Should be of type 'str' or 'int' but is '{type(inp)}'")
 
@@ -2185,7 +2185,7 @@ class HP856Xx(Instrument):
             # reload - at 7 stored trace - to Trace B
             instr.recall_trace(Trace.B, 7)
         """
-        ran = range(0, 8)
+        ran = range(8)
         _validate_trace(trace)
 
         if not isinstance(number, int):
@@ -2309,7 +2309,7 @@ class HP856Xx(Instrument):
             instr.span = 20e6
             instr.save_state("PWRON")
         """
-        values = ["PWRON"] + [str(f) for f in range(0, 10)]
+        values = ["PWRON"] + [str(f) for f in range(10)]
         if not (isinstance(inp, (str, int))):
             raise TypeError(f"Should be of type 'str' or 'int' but is '{type(inp)}'")
 
@@ -2339,7 +2339,7 @@ class HP856Xx(Instrument):
             # reload - at 7 stored trace - to Trace B
             instr.recall_trace(Trace.B, 7)
         """
-        ran = range(0, 8)
+        ran = range(8)
         _validate_trace(trace)
 
         if not isinstance(number, int):
@@ -2430,7 +2430,7 @@ class HP856Xx(Instrument):
         :param status: Bits to emulate a service request
         :type status: :class:`StatusRegister`
         """
-        if status not in range(0, 256):
+        if status not in range(256):
             raise ValueError("Bit mask needs to be between 0 ... 255")
 
         self.write(f"SRQ {status}")
@@ -3027,7 +3027,7 @@ class HP8560A(HP856Xx):
 
 
 class HP856XxWithHighBand(HP856Xx):
-    """Common base class for HP 856x spectrum analyzers with high-band operation.
+    """Provide the high-band command set shared by the microwave HP 856x spectrum analyzers.
 
     It bundles the external-mixer, harmonic-mixing and preselector functions that are
     shared by the microwave models of the family (e.g. the HP 8561B and HP 8565E). These
@@ -3037,6 +3037,11 @@ class HP856XxWithHighBand(HP856Xx):
     Don't use this class directly - use one of its derivative classes such as
     :class:`HP8561B` or :class:`HP8565E`.
     """
+
+    #: Highest frequency reachable with an external mixer (top of band J, see
+    #: :meth:`set_fullband`). Used as the upper limit once harmonic-number locking
+    #: is released with :meth:`unlock_harmonic_number`.
+    MAX_FREQUENCY_EXTERNAL_MIXER = 325e9
 
     conversion_loss = Instrument.control(
         "CNVLOSS?", "CNVLOSS %s DB",
@@ -3182,7 +3187,10 @@ class HP856XxWithHighBand(HP856Xx):
         span from 18 GHz to 40 GHz. In this case, the analyzer will
         automatically sweep first using 6—, then using 8—.
         """
-        self._set_frequency_limits(0, self.MAX_FREQUENCY)
+        # Once the harmonic is unlocked the sweep may span the whole external-mixing
+        # range, so widen the limits accordingly instead of restricting to the
+        # fundamental-mixing MAX_FREQUENCY.
+        self._set_frequency_limits(0, self.MAX_FREQUENCY_EXTERNAL_MIXER)
         self.write("HNUNLK")
 
     def set_signal_identification_to_center_frequency(self):
@@ -3307,7 +3315,7 @@ class HP856XxWithHighBand(HP856Xx):
 
 
 class HP8561B(HP856XxWithHighBand):
-    """Represents the HP 8561B Spectrum Analyzer and provides a high-level
+    """Represent the HP 8561B Spectrum Analyzer and provide a high-level
     interface for interacting with the instrument.
 
     .. code-block:: python
@@ -3336,7 +3344,7 @@ class HP8561B(HP856XxWithHighBand):
 
 
 class HP8565E(HP856XxWithHighBand):
-    """Represents the HP 8565E Spectrum Analyzer and provides a high-level
+    """Represent the HP 8565E Spectrum Analyzer and provide a high-level
     interface for interacting with the instrument.
 
     .. code-block:: python
