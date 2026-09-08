@@ -35,6 +35,7 @@ Changed
 Instruments
 -----------
 - Add Stanford Research Systems DC205 precision DC voltage source.
+- Add Rohde & Schwarz SMP04 microwave signal generator.
 
 Version 0.16.0 (2026-05-20)
 ===========================
