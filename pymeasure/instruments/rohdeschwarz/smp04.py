@@ -29,7 +29,7 @@ BOOL_MAP = {True: 1, False: 0}
 
 
 class SMP04(SCPIMixin, Instrument):
-    """Rohde & Schwarz SMP04 microwave signal generator (2 GHz to 40 GHz).
+    """Control the Rohde & Schwarz SMP04 microwave signal generator (2 GHz to 40 GHz).
 
     The instrument does not implement the ``FREQuency:MINimum?`` family of
     queries, so the frequency and level ranges below are taken from the manual.
