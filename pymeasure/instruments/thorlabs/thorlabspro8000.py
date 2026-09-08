@@ -265,15 +265,17 @@ class PDAPortChannel(Channel):
 
 
 class PDAChannel(Pro8Channel):
-    """A photodiode amplifier module (PDA8xxx) with two independent ports.
+    """A photodiode amplifier module (PDA8xxx) with one or two independent ports.
 
-    The ports are accessible via the ``ports`` dictionary (keyed by port number
-    1 and 2) or the ``port_1`` / ``port_2`` attributes.
+    The number of ports depends on the module variant: the PDA8000-1 has a
+    single port, the PDA8000-2 has two. The ports are accessible via the
+    ``ports`` dictionary (keyed by port number) or the ``port_1`` / ``port_2``
+    attributes.
     """
 
-    def __init__(self, parent, id, **kwargs):
+    def __init__(self, parent, id, port_count=2, **kwargs):
         super().__init__(parent, id, **kwargs)
-        for port in (1, 2):
+        for port in range(1, port_count + 1):
             self.add_child(PDAPortChannel, port, collection="ports", prefix="port_")
 
 
@@ -314,7 +316,7 @@ class ThorlabsPro8000(SCPIMixin, Instrument):
 
     Supported modules are LDC8xxx (:class:`LDCChannel`), TED8xxx
     (:class:`TEDChannel`), ITC8xxx (:class:`ITCChannel`) and PDA8xxx
-    (:class:`PDAChannel`, whose two ports are :class:`PDAPortChannel`).
+    (:class:`PDAChannel`, whose one or two ports are :class:`PDAPortChannel`).
 
     Over the serial port the mainframe requires RTS/CTS hardware handshaking and
     needs a short pause between a command and its response; both are configured by
@@ -355,7 +357,18 @@ class ThorlabsPro8000(SCPIMixin, Instrument):
     def _create_module_channels(self):
         """Create a channel for every slot holding a supported module."""
         self.channels = {}
-        for slot, module_id in enumerate(self.get_module_ids(), start=1):
+        values = self.values(":CONFIG:PLUG?")
+        # (type, subtype) pairs are returned, one pair per slot.
+        module_ids = [int(v) for v in values[0::2]]
+        subtypes = [int(v) for v in values[1::2]]
+        for slot, (module_id, subtype) in enumerate(zip(module_ids, subtypes), start=1):
             channel_class = MODULE_CHANNELS.get(module_id)
-            if channel_class is not None:
+            if channel_class is None:
+                continue
+            if channel_class is PDAChannel:
+                # For the PDA the subtype is the model variant and equals the port
+                # count: the PDA8000-1 (subtype 1) has one port, the PDA8000-2
+                # (subtype 2) has two.
+                self.add_child(channel_class, slot, port_count=subtype)
+            else:
                 self.add_child(channel_class, slot)
