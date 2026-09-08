@@ -204,9 +204,8 @@ def test_ldc_polarity_getter():
 
 
 def test_ldc_polarity_invalid():
-    with expected_protocol(ThorlabsPro8000, INIT) as inst:
-        with pytest.raises(ValueError):
-            inst.channels[1].ld_polarity = "XX"
+    with expected_protocol(ThorlabsPro8000, INIT) as inst, pytest.raises(ValueError):
+        inst.channels[1].ld_polarity = "XX"
 
 
 def test_ldc_mode_setter():
@@ -258,9 +257,8 @@ def test_ted_pid_share_setter():
 
 
 def test_ted_pid_share_out_of_range():
-    with expected_protocol(ThorlabsPro8000, INIT) as inst:
-        with pytest.raises(ValueError):
-            inst.channels[2].pid_i_share = 150
+    with expected_protocol(ThorlabsPro8000, INIT) as inst, pytest.raises(ValueError):
+        inst.channels[2].pid_i_share = 150
 
 
 def test_itc_has_both_laser_and_tec():
