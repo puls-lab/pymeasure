@@ -38,14 +38,38 @@ def test_frequency_getter():
         assert inst.frequency == 40e9
 
 
+def test_frequency_truncates_to_standard_minimum():
+    # Standard model: the 2 GHz lower limit clamps sub-2 GHz requests.
+    with expected_protocol(SMP04, [("FREQ 2000000000.000", None)]) as inst:
+        inst.frequency = 1e9
+
+
+def test_frequency_extension_option_allows_low_frequency():
+    # SMP-B11 lowers the limit to 10 MHz.
+    with expected_protocol(
+        SMP04, [("FREQ 1000000000.000", None)],
+        frequency_extension_option=True,
+    ) as inst:
+        inst.frequency = 1e9
+
+
 def test_power_setter():
-    with expected_protocol(SMP04, [("POW -30.00", None)]) as inst:
-        inst.power = -30
+    with expected_protocol(SMP04, [("POW -10.00", None)]) as inst:
+        inst.power = -10
 
 
-def test_power_setter_truncates_below_minimum():
-    # truncated_range clamps to the -130 dBm lower limit.
-    with expected_protocol(SMP04, [("POW -130.00", None)]) as inst:
+def test_power_truncates_to_standard_minimum():
+    # Standard model: truncated_range clamps to the -20 dBm lower limit.
+    with expected_protocol(SMP04, [("POW -20.00", None)]) as inst:
+        inst.power = -200
+
+
+def test_step_attenuator_option_allows_low_power():
+    # SMP-B15/B17 lowers the limit to -130 dBm.
+    with expected_protocol(
+        SMP04, [("POW -130.00", None)],
+        step_attenuator_option=True,
+    ) as inst:
         inst.power = -200
 
 

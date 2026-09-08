@@ -29,35 +29,50 @@ BOOL_MAP = {True: 1, False: 0}
 
 
 class SMP04(SCPIMixin, Instrument):
-    """Rohde & Schwarz SMP04 microwave signal generator (10 MHz to 40 GHz).
+    """Rohde & Schwarz SMP04 microwave signal generator (2 GHz to 40 GHz).
 
     The instrument does not implement the ``FREQuency:MINimum?`` family of
     queries, so the frequency and level ranges below are taken from the manual.
+    By default the standard-model limits apply; installed options widen them:
+
+    :param frequency_extension_option: SMP-B11 frequency range extension, lowers
+        the frequency limit from 2 GHz to 10 MHz.
+    :param step_attenuator_option: SMP-B15/B17 step attenuator, lowers the level
+        limit from -20 dBm to -130 dBm.
     """
 
-    def __init__(self, adapter, name="Rohde & Schwarz SMP04", **kwargs):
+    def __init__(self, adapter, name="Rohde & Schwarz SMP04",
+                 frequency_extension_option=False,
+                 step_attenuator_option=False, **kwargs):
         super().__init__(adapter, name, **kwargs)
+        if frequency_extension_option:
+            self.frequency_values = [10e6, 40e9]
+        if step_attenuator_option:
+            self.power_values = [-130, 16]
 
     frequency = Instrument.control(
         "FREQ?", "FREQ %.3f",
-        """Control the CW output frequency in Hz (float from 10e6 to 40e9).
+        """Control the CW output frequency in Hz (float from 2e9 to 40e9).
 
-        Values outside the range are clipped to the nearest limit. The base model
-        covers 2 GHz to 40 GHz; the 10 MHz to 2 GHz portion requires the SMP-B11
-        frequency range extension.""",
+        Values outside the range are clipped to the nearest limit. The lower
+        limit drops to 10 MHz with the SMP-B11 frequency range extension
+        (``frequency_extension_option=True``).""",
         validator=truncated_range,
-        values=[10e6, 40e9],
+        values=[2e9, 40e9],
+        dynamic=True,
     )
 
     power = Instrument.control(
         "POW?", "POW %.2f",
-        """Control the RF output level in dBm (float from -130 to 16).
+        """Control the RF output level in dBm (float from -20 to 16).
 
-        Values outside the range are clipped to the nearest limit. The -130 dBm
-        lower limit requires the SMP-B15/B17 step attenuator option (otherwise
-        -20 dBm). +13 dBm is the specified level, +16 dBm the overrange ceiling.""",
+        Values outside the range are clipped to the nearest limit. The lower
+        limit drops to -130 dBm with the SMP-B15/B17 step attenuator
+        (``step_attenuator_option=True``). +13 dBm is the specified level,
+        +16 dBm the overrange ceiling.""",
         validator=truncated_range,
-        values=[-130, 16],
+        values=[-20, 16],
+        dynamic=True,
     )
 
     output_enabled = Instrument.control(
