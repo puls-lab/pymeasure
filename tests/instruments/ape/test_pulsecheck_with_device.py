@@ -181,8 +181,8 @@ def test_acf(instrument, scan_range):
     assert set_and_read(instrument, "scan_range", scan_range) == scan_range
     delay, acf = instrument.acf
     assert len(delay) == len(acf) == instrument.resolution
-    assert np.isclose(delay[-1] - delay[0], scan_range)
-    assert np.isclose(delay[0], -delay[-1])
+    assert np.isclose(delay[-1] - delay[0], scan_range, rtol=1e-6, atol=0)
+    assert np.isclose(delay[0], -delay[-1], rtol=1e-6, atol=0)
 
 
 def test_tune(instrument):
