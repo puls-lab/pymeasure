@@ -24,15 +24,15 @@
 
 import pytest
 
-from pymeasure.test import expected_protocol
 from pymeasure.instruments.thorlabs.thorlabspro8000 import (
-    ThorlabsPro8000,
-    LDCChannel,
-    TEDChannel,
     ITCChannel,
+    LDCChannel,
     PDAChannel,
     PDAPortChannel,
+    TEDChannel,
+    ThorlabsPro8000,
 )
+from pymeasure.test import expected_protocol
 
 # Module map used for most tests: slot 1 = LDC, slot 2 = TED, slot 3 = ITC,
 # slot 4 = PDA8000-2 (two ports), the remaining slots are empty.
