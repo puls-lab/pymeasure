@@ -89,7 +89,7 @@ def test_parser_error():
         PulseCheckUSB,
         [("*OPT?", "Parser error")],
     ) as inst, pytest.raises(ValueError, match="did not understand"):
-        inst.options
+        _ = inst.options
 
 
 def test_read_strips_padding():
@@ -338,7 +338,7 @@ def test_acf_without_block():
         PulseCheckUSB,
         [("ACF:DATA?", "Parser error")],
     ) as inst, pytest.raises(ValueError, match="data block"):
-        inst.acf
+        _ = inst.acf
 
 
 def test_acf_message_instead_of_data():
@@ -347,7 +347,7 @@ def test_acf_message_instead_of_data():
         # the software answers like this while it has no valid autocorrelation
         [("ACF:DATA?", b"#18Time out")],
     ) as inst, pytest.raises(ValueError, match="Time out"):
-        inst.acf
+        _ = inst.acf
 
 
 def test_acf_mean_data():
@@ -377,7 +377,7 @@ def test_acf_mean_data_message():
         PulseCheckUSB,
         [("ACF:MEANDATA?", b"#18Time out")],
     ) as inst, pytest.raises(ValueError, match="Time out"):
-        inst.acf_mean_data
+        _ = inst.acf_mean_data
 
 
 def test_acf_mean_data_parser_error():
@@ -386,7 +386,7 @@ def test_acf_mean_data_parser_error():
         PulseCheckUSB,
         [("ACF:MEANDATA?", "Parser error")],
     ) as inst, pytest.raises(ValueError, match="did not understand"):
-        inst.acf_mean_data
+        _ = inst.acf_mean_data
 
 
 def test_fwhm():
@@ -403,7 +403,7 @@ def test_fit_fwhm_without_fit():
         PulseCheckUSB,
         [("ACF:FITFWHM?", "No fit data")],
     ) as inst, pytest.raises(ValueError, match="No fit data"):
-        inst.fit_fwhm
+        _ = inst.fit_fwhm
 
 
 def test_shutters():

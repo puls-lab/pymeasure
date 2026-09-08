@@ -172,7 +172,7 @@ def test_raw_acf_repeated(instrument):
 
 def test_raw_acf_after_other_commands(instrument):
     """Reading settings in between must not shift the trace's bytes."""
-    instrument.settings
+    _ = instrument.settings
     assert len(instrument.raw_acf()) == instrument.resolution
 
 

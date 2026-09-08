@@ -257,6 +257,22 @@ def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
         inst.set_alpha(100)
 
 
+def test_set_alpha_raises_when_target_reached_after_timeout(monkeypatch):
+    """Reaching the target after the deadline must report a timeout, not success."""
+    monkeypatch.setattr(pulsecheck_module.time, "sleep", lambda seconds: None)
+    clock = iter([0, 10, 100])  # deadline = 60; the success check at 100 is past it
+    monkeypatch.setattr(pulsecheck_module.time, "monotonic", lambda: next(clock))
+    with expected_protocol(
+        PulseCheck,
+        [
+            ("GPM", struct.pack(">H", 90)),  # tune(): current position
+            ("TU10", None),
+            ("GPM", struct.pack(">H", 100)),  # settled on the target, but past the deadline
+        ],
+    ) as inst, pytest.raises(TimeoutError, match="timed out"):
+        inst.set_alpha(100)
+
+
 def test_tune():
     with expected_protocol(
         PulseCheck,
