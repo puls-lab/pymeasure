@@ -26,8 +26,8 @@ import struct
 
 import pytest
 
-from pymeasure.instruments.ape import pulsecheck as pulsecheck_module
 from pymeasure.instruments.ape import PulseCheck
+from pymeasure.instruments.ape import pulsecheck as pulsecheck_module
 from pymeasure.test import expected_protocol
 
 
@@ -232,15 +232,13 @@ def test_set_alpha_raises_timeout_error_when_stuck(monkeypatch):
             ("GPM", struct.pack(">H", 90)),  # stuck-check 1/2: unchanged
             ("GPM", struct.pack(">H", 90)),  # stuck-check 2/2: unchanged -> give up
         ],
-    ) as inst:
-        with pytest.raises(TimeoutError):
-            inst.set_alpha(100, retries=0)
+    ) as inst, pytest.raises(TimeoutError):
+        inst.set_alpha(100, retries=0)
 
 
 def test_set_alpha_rejects_negative_retries():
-    with expected_protocol(PulseCheck, []) as inst:
-        with pytest.raises(ValueError, match="retries"):
-            inst.set_alpha(100, retries=-1)
+    with expected_protocol(PulseCheck, []) as inst, pytest.raises(ValueError, match="retries"):
+        inst.set_alpha(100, retries=-1)
 
 
 def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
@@ -255,9 +253,8 @@ def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
             ("TU10", None),
             ("GPM", struct.pack(">H", 90)),  # current, after the initial 1 s wait
         ],
-    ) as inst:
-        with pytest.raises(TimeoutError, match="timed out"):
-            inst.set_alpha(100)
+    ) as inst, pytest.raises(TimeoutError, match="timed out"):
+        inst.set_alpha(100)
 
 
 def test_tune():

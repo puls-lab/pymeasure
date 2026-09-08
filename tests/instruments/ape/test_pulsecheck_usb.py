@@ -88,9 +88,8 @@ def test_parser_error():
     with expected_protocol(
         PulseCheckUSB,
         [("*OPT?", "Parser error")],
-    ) as inst:
-        with pytest.raises(ValueError, match="did not understand"):
-            inst.options
+    ) as inst, pytest.raises(ValueError, match="did not understand"):
+        inst.options
 
 
 def test_read_strips_padding():
@@ -217,9 +216,8 @@ def test_averages_set():
 
 
 def test_averages_invalid():
-    with expected_protocol(PulseCheckUSB, []) as inst:
-        with pytest.raises(ValueError):
-            inst.averages = 3
+    with expected_protocol(PulseCheckUSB, []) as inst, pytest.raises(ValueError):
+        inst.averages = 3
 
 
 @pytest.mark.parametrize("reply", ["1", "500", "low", "Low\r"])
@@ -276,9 +274,8 @@ def test_gain():
 
 
 def test_gain_out_of_range():
-    with expected_protocol(PulseCheckUSB, []) as inst:
-        with pytest.raises(ValueError):
-            inst.gain = 299
+    with expected_protocol(PulseCheckUSB, []) as inst, pytest.raises(ValueError):
+        inst.gain = 299
 
 
 def test_autogain_enabled():
@@ -340,9 +337,8 @@ def test_acf_without_block():
     with expected_protocol(
         PulseCheckUSB,
         [("ACF:DATA?", "Parser error")],
-    ) as inst:
-        with pytest.raises(ValueError, match="data block"):
-            inst.acf
+    ) as inst, pytest.raises(ValueError, match="data block"):
+        inst.acf
 
 
 def test_acf_message_instead_of_data():
@@ -350,9 +346,8 @@ def test_acf_message_instead_of_data():
         PulseCheckUSB,
         # the software answers like this while it has no valid autocorrelation
         [("ACF:DATA?", b"#18Time out")],
-    ) as inst:
-        with pytest.raises(ValueError, match="Time out"):
-            inst.acf
+    ) as inst, pytest.raises(ValueError, match="Time out"):
+        inst.acf
 
 
 def test_acf_mean_data():
@@ -381,9 +376,8 @@ def test_acf_mean_data_message():
     with expected_protocol(
         PulseCheckUSB,
         [("ACF:MEANDATA?", b"#18Time out")],
-    ) as inst:
-        with pytest.raises(ValueError, match="Time out"):
-            inst.acf_mean_data
+    ) as inst, pytest.raises(ValueError, match="Time out"):
+        inst.acf_mean_data
 
 
 def test_acf_mean_data_parser_error():
@@ -391,9 +385,8 @@ def test_acf_mean_data_parser_error():
     with expected_protocol(
         PulseCheckUSB,
         [("ACF:MEANDATA?", "Parser error")],
-    ) as inst:
-        with pytest.raises(ValueError, match="did not understand"):
-            inst.acf_mean_data
+    ) as inst, pytest.raises(ValueError, match="did not understand"):
+        inst.acf_mean_data
 
 
 def test_fwhm():
@@ -409,9 +402,8 @@ def test_fit_fwhm_without_fit():
     with expected_protocol(
         PulseCheckUSB,
         [("ACF:FITFWHM?", "No fit data")],
-    ) as inst:
-        with pytest.raises(ValueError, match="No fit data"):
-            inst.fit_fwhm
+    ) as inst, pytest.raises(ValueError, match="No fit data"):
+        inst.fit_fwhm
 
 
 def test_shutters():
