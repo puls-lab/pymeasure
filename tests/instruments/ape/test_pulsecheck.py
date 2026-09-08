@@ -21,7 +21,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 #
-import itertools
 import struct
 
 import pytest
@@ -244,7 +243,7 @@ def test_set_alpha_rejects_negative_retries():
 def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
     """Verify that a position which keeps moving without arriving does not loop forever."""
     monkeypatch.setattr(pulsecheck_module.time, "sleep", lambda seconds: None)
-    clock = itertools.count(step=100)
+    clock = iter([0, 10, 100])  # deadline = 60; tripped right after the settling wait
     monkeypatch.setattr(pulsecheck_module.time, "monotonic", lambda: next(clock))
     with expected_protocol(
         PulseCheck,
@@ -260,7 +259,7 @@ def test_set_alpha_raises_timeout_error_when_deadline_passes(monkeypatch):
 def test_set_alpha_raises_when_target_reached_after_timeout(monkeypatch):
     """Reaching the target after the deadline must report a timeout, not success."""
     monkeypatch.setattr(pulsecheck_module.time, "sleep", lambda seconds: None)
-    clock = iter([0, 10, 100])  # deadline = 60; the success check at 100 is past it
+    clock = iter([0, 10, 20, 100])  # deadline = 60; only the success check at 100 is past it
     monkeypatch.setattr(pulsecheck_module.time, "monotonic", lambda: next(clock))
     with expected_protocol(
         PulseCheck,
